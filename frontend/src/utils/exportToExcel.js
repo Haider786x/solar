@@ -96,7 +96,7 @@ function buildSingleSheet(wb, user, report) {
 	// ── LOGO / BRAND HEADER ──────────────────────────────────
 	ws.mergeCells("A1:D1");
 	const logoCell = ws.getCell("A1");
-	logoCell.value     = "☀  SolarWiser";
+	logoCell.value     = "\u2600  SolarWiser";
 	logoCell.fill      = solidFill(C.brandDark);
 	logoCell.font      = { bold: true, size: 22, color: { argb: C.white }, name: "Calibri" };
 	logoCell.alignment = { vertical: "middle", horizontal: "center" };
@@ -148,7 +148,6 @@ function buildSingleSheet(wb, user, report) {
 		row.height = 20;
 		ws.getCell(`A${r}`).value = label;
 		styleLabelCell(ws.getCell(`A${r}`));
-		ws.mergeCells(`B${r}:B${r}`);
 		ws.getCell(`B${r}`).value = value;
 		styleDataCell(ws.getCell(`B${r}`), "left", i % 2 === 0);
 		// fill merged C:D with same alt colour
