@@ -82,7 +82,7 @@ const RegionalMap = ({ users }) => {
 	return (
 		<div
 			ref={containerRef}
-			style={{ height: "100%", minHeight: 240 }}
+			style={{ height: "100%", minHeight: 240, position: "relative", zIndex: 0 }}
 			className="w-full"
 		/>
 	);
