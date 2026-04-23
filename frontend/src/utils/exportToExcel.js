@@ -52,7 +52,7 @@ export const exportReportToExcel = (user, report) => {
 			["Date", "Predicted (kWh)", "Cloud Cover (%)", "Temperature (deg C)"],
 			...forecast.map((item) => [
 				item.date ?? "",
-				Number(item.predicted_kwh ?? 0).toFixed(2),
+				(item.predicted_kwh ?? 0).toFixed(2),
 				item.cloud_cover ?? "",
 				item.temperature ?? "",
 			]),
