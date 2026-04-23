@@ -74,7 +74,7 @@ const RegionalMap = ({ users }) => {
 			try {
 				map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 10 });
 			} catch {
-				// getBounds can throw if group is empty race-condition
+				// getBounds can throw if group is empty due to a race condition
 			}
 		}
 	}, [users]);

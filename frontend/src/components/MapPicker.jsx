@@ -17,6 +17,11 @@ const MapPicker = ({ latitude, longitude, onLocationSelect }) => {
 	const containerRef = useRef(null);
 	const mapRef = useRef(null);
 	const markerRef = useRef(null);
+	// Keep a ref to the callback so the map click handler is never stale
+	const onLocationSelectRef = useRef(onLocationSelect);
+	useEffect(() => {
+		onLocationSelectRef.current = onLocationSelect;
+	}, [onLocationSelect]);
 
 	// Initialise map once
 	useEffect(() => {
@@ -34,9 +39,9 @@ const MapPicker = ({ latitude, longitude, onLocationSelect }) => {
 
 		map.on("click", (e) => {
 			const { lat, lng } = e.latlng;
-			onLocationSelect(
-				parseFloat(lat.toFixed(6)),
-				parseFloat(lng.toFixed(6)),
+			onLocationSelectRef.current(
+				parseFloat(lat.toFixed(4)),
+				parseFloat(lng.toFixed(4)),
 			);
 		});
 
