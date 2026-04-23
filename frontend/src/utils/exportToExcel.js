@@ -2,24 +2,18 @@ import ExcelJS from "exceljs";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Emission & solar assumptions (sources: IEA grid emission factor; NREL peak sun hours average)
-const CO2_KG_PER_KWH      = 0.82;  // avg grid CO₂ emission factor (kg CO₂ / kWh)
-const KG_CO2_PER_TREE_PA  = 21;    // CO₂ absorbed per mature tree per year (kg)
-const AVG_CAR_CO2_KG_PA   = 4600;  // avg car CO₂ emissions per year (kg)
-const PEAK_SUN_HOURS       = 5;     // standard peak sun hours used for daily estimate
-
-// --- Colour palette (emerald / blue) ---
+// --- Colour palette (SolarWiser branding) ---
 const C = {
-	emeraldDark:  "065F46",
-	emeraldMid:   "059669",
-	emeraldLight: "D1FAE5",
-	blueDark:     "1E3A8A",
-	blueMid:      "2563EB",
-	blueLight:    "DBEAFE",
-	slateLight:   "F8FAFC",
-	white:        "FFFFFFFF",
-	border:       "CBD5E1",
-	textDark:     "0F172A",
+	brandDark:   "1B4332",  // deep green
+	brandMid:    "2D6A4F",  // mid green
+	brandLight:  "D8F3DC",  // light green tint
+	accentDark:  "1565C0",  // deep blue accent
+	accentLight: "E3F2FD",  // light blue tint
+	slateLight:  "F8FAFC",
+	white:       "FFFFFFFF",
+	border:      "B7E4C7",
+	textDark:    "0F172A",
+	textMid:     "374151",
 };
 
 // --- Reusable style helpers ---
@@ -32,40 +26,45 @@ const thinBorder = () => ({
 	right:  { style: "thin", color: { argb: C.border } },
 });
 
-function styleTitle(cell, text) {
-	cell.value = text;
-	cell.fill  = solidFill(C.emeraldDark);
-	cell.font  = { bold: true, size: 16, color: { argb: C.white } };
-	cell.alignment = { vertical: "middle", horizontal: "center" };
-}
+const mediumBorder = () => ({
+	top:    { style: "medium", color: { argb: C.brandMid } },
+	left:   { style: "medium", color: { argb: C.brandMid } },
+	bottom: { style: "medium", color: { argb: C.brandMid } },
+	right:  { style: "medium", color: { argb: C.brandMid } },
+});
 
-function styleSectionHeader(cell, text, bgArgb = C.blueLight, fgArgb = C.blueDark) {
-	cell.value = text;
-	cell.fill  = solidFill(bgArgb);
-	cell.font  = { bold: true, size: 11, color: { argb: fgArgb } };
-	cell.alignment = { vertical: "middle", horizontal: "left" };
-	cell.border = { bottom: { style: "medium", color: { argb: C.blueMid } } };
+function styleSectionHeader(cell, text, bgArgb = C.accentLight, fgArgb = C.accentDark) {
+	cell.value     = text;
+	cell.fill      = solidFill(bgArgb);
+	cell.font      = { bold: true, size: 11, color: { argb: fgArgb } };
+	cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+	cell.border    = {
+		top:    { style: "medium", color: { argb: fgArgb } },
+		left:   { style: "medium", color: { argb: fgArgb } },
+		bottom: { style: "medium", color: { argb: fgArgb } },
+		right:  { style: "medium", color: { argb: fgArgb } },
+	};
 }
 
 function styleColHeader(cell) {
-	cell.fill   = solidFill(C.emeraldMid);
-	cell.font   = { bold: true, size: 10, color: { argb: C.white } };
+	cell.fill      = solidFill(C.brandMid);
+	cell.font      = { bold: true, size: 10, color: { argb: C.white } };
 	cell.alignment = { vertical: "middle", horizontal: "center" };
-	cell.border = thinBorder();
+	cell.border    = thinBorder();
 }
 
 function styleDataCell(cell, align = "left", isAlt = false) {
-	if (isAlt) cell.fill = solidFill("F0FDF4"); // emerald-50
-	cell.font   = { size: 10, color: { argb: C.textDark } };
+	if (isAlt) cell.fill = solidFill("F0FFF4");
+	cell.font      = { size: 10, color: { argb: C.textDark } };
 	cell.alignment = { vertical: "middle", horizontal: align };
-	cell.border = thinBorder();
+	cell.border    = thinBorder();
 }
 
 function styleLabelCell(cell) {
-	cell.fill  = solidFill(C.slateLight);
-	cell.font  = { bold: true, size: 10, color: { argb: C.textDark } };
-	cell.alignment = { vertical: "middle", horizontal: "left" };
-	cell.border = thinBorder();
+	cell.fill      = solidFill(C.slateLight);
+	cell.font      = { bold: true, size: 10, color: { argb: C.textMid } };
+	cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+	cell.border    = thinBorder();
 }
 
 // --- Download helper ---
@@ -81,131 +80,132 @@ async function downloadWorkbook(wb, filename) {
 }
 
 // ============================================================
-// SHEET 1 – Executive Summary
+// SINGLE SHEET – Complete Solar Report
 // ============================================================
-function addSummarySheet(wb, user, report) {
-	const ws = wb.addWorksheet("Executive Summary");
+function buildSingleSheet(wb, user, report) {
+	const ws = wb.addWorksheet("Solar Report");
+
+	// Column widths – optimised for both mobile and desktop viewing
 	ws.columns = [
-		{ key: "label", width: 30 },
-		{ key: "value", width: 35 },
+		{ key: "A", width: 28 },
+		{ key: "B", width: 22 },
+		{ key: "C", width: 20 },
+		{ key: "D", width: 22 },
 	];
 
-	// Title
-	ws.mergeCells("A1:B1");
-	styleTitle(ws.getCell("A1"), "SOLAR ENERGY REPORT");
-	ws.getRow(1).height = 40;
+	// ── LOGO / BRAND HEADER ──────────────────────────────────
+	ws.mergeCells("A1:D1");
+	const logoCell = ws.getCell("A1");
+	logoCell.value     = "☀  SolarWiser";
+	logoCell.fill      = solidFill(C.brandDark);
+	logoCell.font      = { bold: true, size: 22, color: { argb: C.white }, name: "Calibri" };
+	logoCell.alignment = { vertical: "middle", horizontal: "center" };
+	logoCell.border    = mediumBorder();
+	ws.getRow(1).height = 48;
 
-	// Generated date
-	ws.mergeCells("A2:B2");
-	const dateCell = ws.getCell("A2");
+	ws.mergeCells("A2:D2");
+	const taglineCell = ws.getCell("A2");
+	taglineCell.value     = "Solar Energy Report";
+	taglineCell.fill      = solidFill(C.brandMid);
+	taglineCell.font      = { italic: true, size: 12, color: { argb: C.white } };
+	taglineCell.alignment = { vertical: "middle", horizontal: "center" };
+	ws.getRow(2).height = 22;
+
+	ws.mergeCells("A3:D3");
+	const dateCell = ws.getCell("A3");
 	dateCell.value     = `Generated: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`;
-	dateCell.fill      = solidFill(C.emeraldLight);
-	dateCell.font      = { italic: true, size: 10, color: { argb: C.emeraldDark } };
-	dateCell.alignment = { horizontal: "center" };
+	dateCell.fill      = solidFill(C.brandLight);
+	dateCell.font      = { italic: true, size: 9, color: { argb: C.brandDark } };
+	dateCell.alignment = { horizontal: "center", vertical: "middle" };
+	ws.getRow(3).height = 16;
 
+	// spacer
 	ws.addRow([]);
+	ws.getRow(4).height = 6;
 
-	// Section header
-	ws.mergeCells("A4:B4");
-	styleSectionHeader(ws.getCell("A4"), "KEY PERFORMANCE METRICS", C.blueLight, C.blueDark);
-	ws.getRow(4).height = 22;
-
-	const metrics = [
-		["Annual Energy Output",   `${(report?.annual_energy_kwh ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} kWh`],
-		["Performance Ratio",      `${((report?.performance_ratio ?? 0) * 100).toFixed(1)} %`],
-		["System Capacity",        `${user?.systemCapacity ?? "–"} kW`],
-		["Location (Lat / Lon)",   `${user?.location?.latitude ?? "–"} / ${user?.location?.longitude ?? "–"}`],
-		["Forecast Days Available",String(report?.forecast_7_days?.length ?? 0)],
-		["CO₂ Savings (Est.)",     `${((report?.annual_energy_kwh ?? 0) * 0.82).toLocaleString("en-US", { maximumFractionDigits: 1 })} kg`],
-		["Trees Equivalent (Est.)",`${(((report?.annual_energy_kwh ?? 0) * 0.82) / 21).toFixed(1)} trees`],
-	];
-
-	metrics.forEach(([label, value], i) => {
-		const row = ws.addRow([label, value]);
-		row.height = 20;
-		styleLabelCell(row.getCell(1));
-		styleDataCell(row.getCell(2), "right", i % 2 === 0);
-	});
-}
-
-// ============================================================
-// SHEET 2 – User & System Details
-// ============================================================
-function addUserDetailsSheet(wb, user) {
-	const ws = wb.addWorksheet("User & System Details");
-	ws.columns = [
-		{ key: "label", width: 28 },
-		{ key: "value", width: 40 },
-	];
-
-	ws.mergeCells("A1:B1");
-	styleTitle(ws.getCell("A1"), "USER & SYSTEM DETAILS");
-	ws.getRow(1).height = 36;
-
-	ws.addRow([]);
-
-	// User Information
-	ws.mergeCells("A3:B3");
-	styleSectionHeader(ws.getCell("A3"), "USER INFORMATION");
-	ws.getRow(3).height = 22;
+	// ── SECTION: USER DETAILS ────────────────────────────────
+	let r = 5;
+	ws.mergeCells(`A${r}:D${r}`);
+	styleSectionHeader(ws.getCell(`A${r}`), "USER DETAILS", C.brandLight, C.brandDark);
+	ws.getRow(r).height = 22;
+	r++;
 
 	const userFields = [
-		["Full Name",    user?.name        ?? "–"],
-		["Email Address",user?.email       ?? "–"],
-		["Phone Number", user?.phoneNumber ?? "–"],
+		["Name",           user?.name              ?? "–"],
+		["Email",          user?.email             ?? "–"],
+		["Phone",          user?.phoneNumber        ?? "–"],
+		["Latitude",       user?.location?.latitude  ?? "–"],
+		["Longitude",      user?.location?.longitude ?? "–"],
+		["System Capacity",`${user?.systemCapacity ?? "–"} kW`],
+		["Tilt Angle",     `${user?.tiltDeg        ?? "–"} °`],
+		["Azimuth Angle",  `${user?.azimuthDeg     ?? "–"} °`],
+		["Shading Factor", user?.shadingFactor      ?? "–"],
 	];
+
 	userFields.forEach(([label, value], i) => {
-		const row = ws.addRow([label, value]);
+		ws.mergeCells(`C${r}:D${r}`);
+		const row = ws.getRow(r);
 		row.height = 20;
-		styleLabelCell(row.getCell(1));
-		styleDataCell(row.getCell(2), "left", i % 2 === 0);
+		ws.getCell(`A${r}`).value = label;
+		styleLabelCell(ws.getCell(`A${r}`));
+		ws.mergeCells(`B${r}:B${r}`);
+		ws.getCell(`B${r}`).value = value;
+		styleDataCell(ws.getCell(`B${r}`), "left", i % 2 === 0);
+		// fill merged C:D with same alt colour
+		const cCell = ws.getCell(`C${r}`);
+		if (i % 2 === 0) cCell.fill = solidFill("F0FFF4");
+		cCell.border = thinBorder();
+		r++;
 	});
 
+	// spacer
 	ws.addRow([]);
+	ws.getRow(r).height = 6;
+	r++;
 
-	// System Configuration
-	const sysRow = ws.addRow([]);
-	ws.mergeCells(`A${sysRow.number}:B${sysRow.number}`);
-	styleSectionHeader(ws.getCell(`A${sysRow.number}`), "SYSTEM CONFIGURATION", C.emeraldLight, C.emeraldDark);
-	sysRow.height = 22;
+	// ── SECTION: ANNUAL ENERGY DATA ─────────────────────────
+	ws.mergeCells(`A${r}:D${r}`);
+	styleSectionHeader(ws.getCell(`A${r}`), "ANNUAL ENERGY DATA", C.accentLight, C.accentDark);
+	ws.getRow(r).height = 22;
+	r++;
 
-	const sysFields = [
-		["System Capacity (kW)",  user?.systemCapacity  ?? "–"],
-		["Tilt Angle (deg)",      user?.tiltDeg         ?? "–"],
-		["Azimuth Angle (deg)",   user?.azimuthDeg      ?? "–"],
-		["Shading Factor",        user?.shadingFactor   ?? "–"],
-		["Latitude",              user?.location?.latitude  ?? "–"],
-		["Longitude",             user?.location?.longitude ?? "–"],
+	const annualFields = [
+		["Annual Generation",  `${(report?.annual_energy_kwh ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} kWh`],
+		["Performance Ratio",  `${((report?.performance_ratio ?? 0) * 100).toFixed(1)} %`],
 	];
-	sysFields.forEach(([label, value], i) => {
-		const row = ws.addRow([label, value]);
-		row.height = 20;
-		styleLabelCell(row.getCell(1));
-		styleDataCell(row.getCell(2), "left", i % 2 === 0);
+
+	annualFields.forEach(([label, value], i) => {
+		ws.mergeCells(`C${r}:D${r}`);
+		ws.getCell(`A${r}`).value = label;
+		styleLabelCell(ws.getCell(`A${r}`));
+		ws.getCell(`B${r}`).value = value;
+		styleDataCell(ws.getCell(`B${r}`), "left", i % 2 === 0);
+		const cCell = ws.getCell(`C${r}`);
+		if (i % 2 === 0) cCell.fill = solidFill("F0FFF4");
+		cCell.border = thinBorder();
+		ws.getRow(r).height = 20;
+		r++;
 	});
-}
 
-// ============================================================
-// SHEET 3 – Monthly Energy Breakdown
-// ============================================================
-function addMonthlySheet(wb, report) {
-	const ws = wb.addWorksheet("Monthly Energy Breakdown");
-	ws.columns = [
-		{ key: "month",   width: 18 },
-		{ key: "energy",  width: 22 },
-		{ key: "percent", width: 20 },
-	];
-
-	ws.mergeCells("A1:C1");
-	styleTitle(ws.getCell("A1"), "MONTHLY ENERGY BREAKDOWN");
-	ws.getRow(1).height = 36;
-
+	// spacer
 	ws.addRow([]);
+	ws.getRow(r).height = 6;
+	r++;
 
-	// Column headers
-	const headerRow = ws.addRow(["Month", "Energy (kWh)", "% of Annual"]);
-	headerRow.height = 22;
-	["A", "B", "C"].forEach((col) => styleColHeader(ws.getCell(`${col}${headerRow.number}`)));
+	// ── SECTION: MONTHLY BREAKDOWN ───────────────────────────
+	ws.mergeCells(`A${r}:D${r}`);
+	styleSectionHeader(ws.getCell(`A${r}`), "MONTHLY BREAKDOWN", C.brandLight, C.brandDark);
+	ws.getRow(r).height = 22;
+	r++;
+
+	// column headers
+	["Month", "Energy (kWh)", "% of Annual", ""].forEach((hdr, ci) => {
+		const col = ["A", "B", "C", "D"][ci];
+		ws.getCell(`${col}${r}`).value = hdr;
+		if (hdr) styleColHeader(ws.getCell(`${col}${r}`));
+	});
+	ws.getRow(r).height = 22;
+	r++;
 
 	const monthlyRaw = report?.monthly_energy_kwh;
 	const entries = [];
@@ -215,155 +215,97 @@ function addMonthlySheet(wb, report) {
 		Object.entries(monthlyRaw).forEach(([key, val]) => entries.push([key, Number(val) || 0]));
 	}
 
-	const total = entries.reduce((s, [, v]) => s + v, 0);
+	const monthlyTotal = entries.reduce((s, [, v]) => s + v, 0);
 
 	entries.forEach(([month, energy], i) => {
-		const pct = total > 0 ? ((energy / total) * 100).toFixed(1) : "0.0";
-		const row = ws.addRow([month, energy.toFixed(2), `${pct}%`]);
-		row.height = 20;
-		styleDataCell(row.getCell(1), "left",  i % 2 === 0);
-		styleDataCell(row.getCell(2), "right", i % 2 === 0);
-		styleDataCell(row.getCell(3), "right", i % 2 === 0);
-		row.getCell(2).numFmt = "#,##0.00";
+		const pct = monthlyTotal > 0 ? ((energy / monthlyTotal) * 100).toFixed(1) : "0.0";
+		ws.getCell(`A${r}`).value = month;
+		ws.getCell(`B${r}`).value = energy;
+		ws.getCell(`C${r}`).value = `${pct}%`;
+		ws.getCell(`D${r}`).value = "";
+		styleDataCell(ws.getCell(`A${r}`), "left",   i % 2 === 0);
+		styleDataCell(ws.getCell(`B${r}`), "right",  i % 2 === 0);
+		styleDataCell(ws.getCell(`C${r}`), "right",  i % 2 === 0);
+		styleDataCell(ws.getCell(`D${r}`), "left",   i % 2 === 0);
+		ws.getCell(`B${r}`).numFmt = "#,##0.00";
+		ws.getRow(r).height = 20;
+		r++;
 	});
 
 	if (entries.length) {
-		const totalRow = ws.addRow(["TOTAL", total.toFixed(2), "100.0%"]);
-		totalRow.height = 22;
-		["A", "B", "C"].forEach((col) => {
-			const cell = totalRow.getCell(col);
-			cell.fill   = solidFill(C.emeraldMid);
-			cell.font   = { bold: true, size: 10, color: { argb: C.white } };
-			cell.border = thinBorder();
+		["A", "B", "C", "D"].forEach((col) => {
+			const cell = ws.getCell(`${col}${r}`);
+			cell.fill      = solidFill(C.brandMid);
+			cell.font      = { bold: true, size: 10, color: { argb: C.white } };
+			cell.border    = thinBorder();
 			cell.alignment = { horizontal: col === "A" ? "left" : "right", vertical: "middle" };
 		});
-		totalRow.getCell("B").numFmt = "#,##0.00";
+		ws.getCell(`A${r}`).value = "TOTAL";
+		ws.getCell(`B${r}`).value = monthlyTotal;
+		ws.getCell(`B${r}`).numFmt = "#,##0.00";
+		ws.getCell(`C${r}`).value = "100.0%";
+		ws.getRow(r).height = 22;
+		r++;
 	}
-}
 
-// ============================================================
-// SHEET 4 – 7-Day Forecast
-// ============================================================
-function addForecastSheet(wb, report) {
-	const ws = wb.addWorksheet("7-Day Forecast");
-	ws.columns = [
-		{ key: "date",    width: 18 },
-		{ key: "kwh",     width: 22 },
-		{ key: "cloud",   width: 20 },
-		{ key: "temp",    width: 24 },
-	];
-
-	ws.mergeCells("A1:D1");
-	styleTitle(ws.getCell("A1"), "7-DAY SOLAR FORECAST");
-	ws.getRow(1).height = 36;
-
+	// spacer
 	ws.addRow([]);
+	ws.getRow(r).height = 6;
+	r++;
 
-	const headerRow = ws.addRow(["Date", "Predicted (kWh)", "Cloud Cover (%)", "Temperature (°C)"]);
-	headerRow.height = 22;
-	["A", "B", "C", "D"].forEach((col) => styleColHeader(ws.getCell(`${col}${headerRow.number}`)));
+	// ── SECTION: 7-DAY FORECAST ──────────────────────────────
+	ws.mergeCells(`A${r}:D${r}`);
+	styleSectionHeader(ws.getCell(`A${r}`), "7-DAY FORECAST", C.accentLight, C.accentDark);
+	ws.getRow(r).height = 22;
+	r++;
+
+	// column headers
+	["Date", "Predicted (kWh)", "Cloud Cover (%)", "Temperature (°C)"].forEach((hdr, ci) => {
+		const col = ["A", "B", "C", "D"][ci];
+		ws.getCell(`${col}${r}`).value = hdr;
+		styleColHeader(ws.getCell(`${col}${r}`));
+	});
+	ws.getRow(r).height = 22;
+	r++;
 
 	const forecast = report?.forecast_7_days;
 	if (forecast?.length) {
 		forecast.forEach((item, i) => {
-			const row = ws.addRow([
-				item.date ?? "",
-				Number((item.predicted_kwh ?? 0).toFixed(2)),
-				item.cloud_cover ?? "",
-				item.temperature ?? "",
-			]);
-			row.height = 20;
-			styleDataCell(row.getCell(1), "center", i % 2 === 0);
-			styleDataCell(row.getCell(2), "right",  i % 2 === 0);
-			styleDataCell(row.getCell(3), "right",  i % 2 === 0);
-			styleDataCell(row.getCell(4), "right",  i % 2 === 0);
-			row.getCell(2).numFmt = "#,##0.00";
+			ws.getCell(`A${r}`).value = item.date ?? "";
+			ws.getCell(`B${r}`).value = Number((item.predicted_kwh ?? 0).toFixed(2));
+			ws.getCell(`C${r}`).value = item.cloud_cover ?? "";
+			ws.getCell(`D${r}`).value = item.temperature ?? "";
+			styleDataCell(ws.getCell(`A${r}`), "center", i % 2 === 0);
+			styleDataCell(ws.getCell(`B${r}`), "right",  i % 2 === 0);
+			styleDataCell(ws.getCell(`C${r}`), "right",  i % 2 === 0);
+			styleDataCell(ws.getCell(`D${r}`), "right",  i % 2 === 0);
+			ws.getCell(`B${r}`).numFmt = "#,##0.00";
+			ws.getRow(r).height = 20;
+			r++;
 		});
 	} else {
-		ws.mergeCells(`A4:D4`);
-		const noDataCell = ws.getCell("A4");
+		ws.mergeCells(`A${r}:D${r}`);
+		const noDataCell = ws.getCell(`A${r}`);
 		noDataCell.value     = "No forecast data available for this report.";
 		noDataCell.fill      = solidFill(C.slateLight);
 		noDataCell.font      = { italic: true, size: 10, color: { argb: "94A3B8" } };
 		noDataCell.alignment = { horizontal: "center", vertical: "middle" };
-		ws.getRow(4).height  = 24;
+		ws.getRow(r).height  = 24;
+		r++;
 	}
-}
 
-// ============================================================
-// SHEET 5 – Savings & Environmental Impact
-// ============================================================
-function addSavingsSheet(wb, user, report) {
-	const ws = wb.addWorksheet("Savings & Environmental Impact");
-	ws.columns = [
-		{ key: "label", width: 34 },
-		{ key: "value", width: 30 },
-	];
-
-	ws.mergeCells("A1:B1");
-	styleTitle(ws.getCell("A1"), "SAVINGS & ENVIRONMENTAL IMPACT");
-	ws.getRow(1).height = 36;
-
+	// ── FOOTER ───────────────────────────────────────────────
 	ws.addRow([]);
+	ws.getRow(r).height = 6;
+	r++;
 
-	// Environmental impact
-	ws.mergeCells("A3:B3");
-	styleSectionHeader(ws.getCell("A3"), "ENVIRONMENTAL IMPACT", C.emeraldLight, C.emeraldDark);
-	ws.getRow(3).height = 22;
-
-	const annualKwh  = report?.annual_energy_kwh ?? 0;
-	const co2Saved   = annualKwh * CO2_KG_PER_KWH;
-	const trees      = co2Saved / KG_CO2_PER_TREE_PA;
-	const carDays    = (co2Saved / AVG_CAR_CO2_KG_PA) * 365;
-
-	const envFields = [
-		["Annual Energy Generated (kWh)",  annualKwh.toLocaleString("en-US", { maximumFractionDigits: 2 })],
-		["CO₂ Emissions Saved (kg/year)",  co2Saved.toLocaleString("en-US", { maximumFractionDigits: 1 })],
-		["Equivalent Trees Planted",       trees.toFixed(1)],
-		["Car-free Driving Days Equivalent", carDays.toFixed(1)],
-	];
-	envFields.forEach(([label, value], i) => {
-		const row = ws.addRow([label, value]);
-		row.height = 20;
-		styleLabelCell(row.getCell(1));
-		styleDataCell(row.getCell(2), "right", i % 2 === 0);
-	});
-
-	ws.addRow([]);
-
-	// System summary
-	const sysSummaryRow = ws.addRow([]);
-	ws.mergeCells(`A${sysSummaryRow.number}:B${sysSummaryRow.number}`);
-	styleSectionHeader(ws.getCell(`A${sysSummaryRow.number}`), "SYSTEM SUMMARY", C.blueLight, C.blueDark);
-	sysSummaryRow.height = 22;
-
-	const capacity    = Number(user?.systemCapacity ?? 0);
-	const perfRatio   = report?.performance_ratio ?? 0;
-	const estDailyKwh = capacity * PEAK_SUN_HOURS * perfRatio;
-
-	const sysFields = [
-		["Installed Capacity (kW)",       capacity > 0 ? capacity.toFixed(2) : "–"],
-		["Performance Ratio",             perfRatio > 0 ? `${(perfRatio * 100).toFixed(1)} %` : "–"],
-		["Est. Daily Generation (kWh)",   estDailyKwh > 0 ? estDailyKwh.toFixed(2) : "–"],
-		["Est. Annual Generation (kWh)",  annualKwh > 0 ? annualKwh.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "–"],
-	];
-	sysFields.forEach(([label, value], i) => {
-		const row = ws.addRow([label, value]);
-		row.height = 20;
-		styleLabelCell(row.getCell(1));
-		styleDataCell(row.getCell(2), "right", i % 2 === 0);
-	});
-
-	ws.addRow([]);
-
-	// Disclaimer
-	const noteRow = ws.addRow([]);
-	ws.mergeCells(`A${noteRow.number}:B${noteRow.number}`);
-	const noteCell = ws.getCell(`A${noteRow.number}`);
-	noteCell.value     = `Note: Environmental impact figures are estimates based on average grid emission factors (${CO2_KG_PER_KWH} kg CO₂/kWh).`;
-	noteCell.font      = { italic: true, size: 9, color: { argb: "64748B" } };
-	noteCell.alignment = { wrapText: true };
-	ws.getRow(noteRow.number).height = 28;
+	ws.mergeCells(`A${r}:D${r}`);
+	const footerCell = ws.getCell(`A${r}`);
+	footerCell.value     = "© SolarWiser — Confidential Report";
+	footerCell.fill      = solidFill(C.brandDark);
+	footerCell.font      = { italic: true, size: 9, color: { argb: C.white } };
+	footerCell.alignment = { horizontal: "center", vertical: "middle" };
+	ws.getRow(r).height  = 16;
 }
 
 // ============================================================
@@ -371,15 +313,11 @@ function addSavingsSheet(wb, user, report) {
 // ============================================================
 export const exportReportToExcel = async (user, report) => {
 	const wb = new ExcelJS.Workbook();
-	wb.creator  = "Solar Report System";
+	wb.creator  = "SolarWiser";
 	wb.created  = new Date();
 	wb.modified = new Date();
 
-	addSummarySheet(wb, user, report);
-	addUserDetailsSheet(wb, user);
-	addMonthlySheet(wb, report);
-	addForecastSheet(wb, report);
-	addSavingsSheet(wb, user, report);
+	buildSingleSheet(wb, user, report);
 
 	const date     = new Date().toISOString().slice(0, 10);
 	const safeName = (user?.name ?? "User").replace(/\s+/g, "_");
