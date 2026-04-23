@@ -77,7 +77,7 @@ const MapPicker = ({ latitude, longitude, onLocationSelect }) => {
 	}, [latitude, longitude]);
 
 	return (
-		<div className="md:col-span-2">
+		<div className="md:col-span-2" style={{ isolation: "isolate" }}>
 			<p className="mb-1 text-xs font-semibold text-slate-600">
 				Click on the map to set location, or enter coordinates above
 			</p>
