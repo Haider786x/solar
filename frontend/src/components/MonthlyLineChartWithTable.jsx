@@ -38,7 +38,7 @@ const MonthlyLineChartWithTable = ({ monthlyData = {} }) => {
 			q3: chartPoints.slice(6, 9).reduce((sum, p) => sum + p.value, 0) / 3,
 			q4: chartPoints.slice(9, 12).reduce((sum, p) => sum + p.value, 0) / 3
 		};
-	}, [chartPoints, values]);
+	}, [chartPoints, maxValue, values]);
 
 	const points = chartPoints.map((point) => `${point.x},${point.y}`).join(" ");
 	const hoveredPoint = hoveredIndex !== null ? chartPoints[hoveredIndex] : null;

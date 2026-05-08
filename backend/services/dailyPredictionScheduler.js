@@ -1,55 +1,78 @@
 const cron = require("node-cron");
 const DailyPrediction = require("../models/DailyPrediction");
-const User = require("../models/User");
+const UserData = require("../models/data");
 
-const AIML_BASE_URL = process.env.AIML_BASE_URL || "http://localhost:8000";
+const AIML_BASE_URL = process.env.AIML_BASE_URL || process.env.AIML_API_URL || "http://127.0.0.1:8000";
+const DAILY_PREDICTION_TIMEZONE = process.env.DAILY_PREDICTION_TIMEZONE || "Asia/Kolkata";
+
+const isFiniteNumber = (value) => Number.isFinite(Number(value));
+
+const getDailyPredictionDate = (date = new Date()) => date.toISOString().split("T")[0];
+
+async function fetchJsonWithTimeout(url, timeoutMs = 30000) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
+		const response = await fetch(url, { signal: controller.signal });
+
+		if (!response.ok) {
+			throw new Error(`AIML API returned ${response.status}`);
+		}
+
+		return response.json();
+	} finally {
+		clearTimeout(timeout);
+	}
+}
 
 /**
  * Fetch daily prediction from AIML API and store in database
  * Keeps rolling 6-day window (today + previous 5 days)
  */
-async function fetchAndStoreDailyPredictions() {
+async function fetchAndStoreDailyPredictions(options = {}) {
 	try {
 		console.log(`[Daily Prediction] Starting fetch at ${new Date().toISOString()}`);
 
-		// Get all users
-		const users = await User.find({});
+		const query = options.userId ? { _id: options.userId } : {};
+		const users = await UserData.find(query);
 
 		if (!users.length) {
 			console.log("[Daily Prediction] No users found");
 			return;
 		}
 
-		const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+		const today = getDailyPredictionDate();
+		const cutoffDate = new Date();
+		cutoffDate.setDate(cutoffDate.getDate() - 5);
+		const cutoffDateStr = getDailyPredictionDate(cutoffDate);
 
 		for (const user of users) {
 			try {
-				// Skip if user doesn't have required fields
-				if (!user.location || !user.systemCapacity || !user.tiltDeg || !user.azimuthDeg) {
+				const latitude = user.location?.latitude;
+				const longitude = user.location?.longitude;
+				const { systemCapacity, tiltDeg, azimuthDeg } = user;
+
+				if (
+					!isFiniteNumber(latitude) ||
+					!isFiniteNumber(longitude) ||
+					!isFiniteNumber(systemCapacity) ||
+					!isFiniteNumber(tiltDeg) ||
+					!isFiniteNumber(azimuthDeg)
+				) {
 					console.log(`[Daily Prediction] Skipping user ${user._id} - missing location/system data`);
 					continue;
 				}
 
-				const { latitude, longitude } = user.location;
-				const { systemCapacity, tiltDeg, azimuthDeg } = user;
-
-				// Call AIML /predict-today endpoint
-				const aimlUrl = new URL(`${AIML_BASE_URL}/predict-today`);
+				const aimlUrl = new URL("/predict-today", AIML_BASE_URL);
 				aimlUrl.searchParams.append("lat", latitude);
 				aimlUrl.searchParams.append("lon", longitude);
 				aimlUrl.searchParams.append("capacity_kw", systemCapacity);
 				aimlUrl.searchParams.append("tilt", tiltDeg);
 				aimlUrl.searchParams.append("azimuth", azimuthDeg);
 
-				const response = await fetch(aimlUrl.toString(), { timeout: 30000 });
+				const prediction = await fetchJsonWithTimeout(aimlUrl.toString());
 
-				if (!response.ok) {
-					throw new Error(`AIML API returned ${response.status}`);
-				}
-
-				const prediction = await response.json();
-
-				// Store prediction
 				await DailyPrediction.findOneAndUpdate(
 					{ userId: user._id, date: today },
 					{
@@ -66,20 +89,14 @@ async function fetchAndStoreDailyPredictions() {
 
 				console.log(`[Daily Prediction] Stored prediction for user ${user._id} on ${today}`);
 
-				// Delete predictions older than 6 days
-				const sixDaysAgo = new Date();
-				sixDaysAgo.setDate(sixDaysAgo.getDate() - 6);
-				const sixDaysAgoStr = sixDaysAgo.toISOString().split("T")[0];
-
 				await DailyPrediction.deleteMany({
 					userId: user._id,
-					date: { $lt: sixDaysAgoStr }
+					date: { $lt: cutoffDateStr }
 				});
 
-				console.log(`[Daily Prediction] Cleaned old predictions for user ${user._id} before ${sixDaysAgoStr}`);
+				console.log(`[Daily Prediction] Cleaned old predictions for user ${user._id} before ${cutoffDateStr}`);
 			} catch (err) {
 				console.error(`[Daily Prediction] Error processing user ${user._id}:`, err.message);
-				// Continue with next user on error
 			}
 		}
 
@@ -91,27 +108,25 @@ async function fetchAndStoreDailyPredictions() {
 
 /**
  * Initialize the daily prediction scheduler
- * Runs every day at 7 PM (19:00) in the server's timezone
+ * Runs every day at 7 PM (19:00) in the configured timezone
  */
 function initializeDailyPredictionScheduler() {
-	// Schedule for 7 PM (19:00) every day
 	const job = cron.schedule("0 19 * * *", fetchAndStoreDailyPredictions, {
 		scheduled: true,
-		timezone: "UTC"
+		timezone: DAILY_PREDICTION_TIMEZONE
 	});
 
-	console.log("[Daily Prediction] Scheduler initialized - runs daily at 7 PM UTC");
+	console.log(`[Daily Prediction] Scheduler initialized - runs daily at 7 PM ${DAILY_PREDICTION_TIMEZONE}`);
 
-	// Return job handle for manual testing/control
 	return job;
 }
 
 /**
  * Manual trigger for testing (can be called from route)
  */
-async function triggerDailyPredictionFetch() {
+async function triggerDailyPredictionFetch(options = {}) {
 	console.log("[Daily Prediction] Manual trigger initiated");
-	await fetchAndStoreDailyPredictions();
+	await fetchAndStoreDailyPredictions(options);
 }
 
 module.exports = {

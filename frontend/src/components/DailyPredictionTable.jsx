@@ -1,0 +1,97 @@
+const dateFormatter = new Intl.DateTimeFormat("en-IN", {
+	day: "2-digit",
+	month: "short",
+	year: "numeric"
+});
+
+const formatDate = (date) => {
+	if (!date) return "N/A";
+
+	const parsedDate = new Date(`${date}T00:00:00`);
+
+	if (Number.isNaN(parsedDate.getTime())) {
+		return date;
+	}
+
+	return dateFormatter.format(parsedDate);
+};
+
+const formatNumber = (value, suffix = "") => {
+	if (value === null || value === undefined || value === "N/A") {
+		return "N/A";
+	}
+
+	const numberValue = Number(value);
+
+	if (!Number.isFinite(numberValue)) {
+		return "N/A";
+	}
+
+	return `${numberValue.toFixed(2)}${suffix}`;
+};
+
+const DailyPredictionTable = ({ predictions = [], loading = false, error = "" }) => {
+	return (
+		<div className="rounded-2xl border border-slate-300/60 bg-white/90 p-4 shadow-lg backdrop-blur-sm">
+			<div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+				<div>
+					<h3 className="text-xl font-bold tracking-tight text-slate-900">Daily Prediction History</h3>
+					<p className="mt-1 text-sm text-slate-600">Predicted output compared with inverter readings</p>
+				</div>
+				<span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
+					6 days
+				</span>
+			</div>
+
+			{loading && <p className="mt-3 text-sm font-semibold text-blue-700">Loading daily predictions...</p>}
+			{error && <p className="mt-3 text-sm font-semibold text-rose-700">{error}</p>}
+
+			{!loading && !error && predictions.length === 0 && (
+				<p className="mt-3 text-sm font-medium text-slate-600">No daily prediction records are available yet.</p>
+			)}
+
+			{!loading && !error && predictions.length > 0 && (
+				<div className="mt-3 overflow-x-auto">
+					<table className="min-w-[760px] w-full border-collapse text-left text-sm text-slate-700">
+						<thead>
+							<tr>
+								<th className="border-b border-slate-200 bg-blue-50/70 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Date</th>
+								<th className="border-b border-slate-200 bg-blue-50/70 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Predicted (kWh)</th>
+								<th className="border-b border-slate-200 bg-blue-50/70 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Inverter (kWh)</th>
+								<th className="border-b border-slate-200 bg-blue-50/70 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Peak Power (kW)</th>
+								<th className="border-b border-slate-200 bg-blue-50/70 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Avg Temp (C)</th>
+								<th className="border-b border-slate-200 bg-blue-50/70 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Cloud Cover (%)</th>
+							</tr>
+						</thead>
+						<tbody>
+							{predictions.map((prediction) => (
+								<tr key={prediction.date} className="hover:bg-slate-50/80">
+									<td className="whitespace-nowrap border-b border-slate-100 px-3 py-3 font-semibold text-slate-900">
+										{formatDate(prediction.date)}
+									</td>
+									<td className="whitespace-nowrap border-b border-slate-100 px-3 py-3">
+										{formatNumber(prediction.predicted_kwh)}
+									</td>
+									<td className="whitespace-nowrap border-b border-slate-100 px-3 py-3">
+										{formatNumber(prediction.inverter_real_time_kwh)}
+									</td>
+									<td className="whitespace-nowrap border-b border-slate-100 px-3 py-3">
+										{formatNumber(prediction.peak_power_kw)}
+									</td>
+									<td className="whitespace-nowrap border-b border-slate-100 px-3 py-3">
+										{formatNumber(prediction.avg_temperature)}
+									</td>
+									<td className="whitespace-nowrap border-b border-slate-100 px-3 py-3">
+										{formatNumber(prediction.avg_cloud_cover)}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			)}
+		</div>
+	);
+};
+
+export default DailyPredictionTable;

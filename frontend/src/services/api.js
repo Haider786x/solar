@@ -31,6 +31,11 @@ export const fetchSolarReportByUserId = async (userId) => {
 	return parseResponse(response, "Failed to generate solar report");
 };
 
+export const fetchDailyPredictionsByUserId = async (userId) => {
+	const response = await fetch(`${API_BASE_URL}/users/${userId}/daily-predictions`);
+	return parseResponse(response, "Failed to fetch daily predictions");
+};
+
 export const createUser = async (payload) => {
 	const response = await fetch(`${API_BASE_URL}/enter`, {
 		method: "POST",

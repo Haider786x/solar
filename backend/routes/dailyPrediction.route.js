@@ -1,7 +1,13 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const DailyPrediction = require("../models/DailyPrediction");
 
 const router = express.Router();
+
+const formatNumber = (value) => {
+	const numberValue = Number(value ?? 0);
+	return Number.isFinite(numberValue) ? Number(numberValue.toFixed(2)) : 0;
+};
 
 /**
  * GET /users/:userId/daily-predictions
@@ -12,26 +18,22 @@ router.get("/:userId/daily-predictions", async (req, res) => {
 	try {
 		const { userId } = req.params;
 
-		// Validate userId format
-		if (!userId || userId.length !== 24) {
+		if (!mongoose.Types.ObjectId.isValid(userId)) {
 			return res.status(400).json({
 				success: false,
 				message: "Invalid user ID format"
 			});
 		}
 
-		// Get today's date
 		const today = new Date();
 		const sixDaysAgo = new Date();
 		sixDaysAgo.setDate(today.getDate() - 5);
 
-		// Format dates for query (YYYY-MM-DD)
 		const todayStr = today.toISOString().split("T")[0];
 		const sixDaysAgoStr = sixDaysAgo.toISOString().split("T")[0];
 
-		// Fetch predictions for the last 6 days (including today)
 		const predictions = await DailyPrediction.find({
-			userId: userId,
+			userId,
 			date: {
 				$gte: sixDaysAgoStr,
 				$lte: todayStr
@@ -40,14 +42,13 @@ router.get("/:userId/daily-predictions", async (req, res) => {
 			.sort({ date: -1 })
 			.lean();
 
-		// Format response with two columns
 		const formattedData = predictions.map((pred) => ({
 			date: pred.date,
-			predicted_kwh: parseFloat(pred.predicted_kwh.toFixed(2)),
-			inverter_real_time_kwh: pred.inverter_real_time_kwh, // "N/A" for now
-			peak_power_kw: parseFloat(pred.peak_power_kw.toFixed(2)),
-			avg_temperature: parseFloat(pred.avg_temperature.toFixed(2)),
-			avg_cloud_cover: parseFloat(pred.avg_cloud_cover.toFixed(2))
+			predicted_kwh: formatNumber(pred.predicted_kwh),
+			inverter_real_time_kwh: pred.inverter_real_time_kwh || "N/A",
+			peak_power_kw: formatNumber(pred.peak_power_kw),
+			avg_temperature: formatNumber(pred.avg_temperature),
+			avg_cloud_cover: formatNumber(pred.avg_cloud_cover)
 		}));
 
 		res.status(200).json({
@@ -75,19 +76,16 @@ router.post("/:userId/daily-predictions/trigger", async (req, res) => {
 	try {
 		const { userId } = req.params;
 
-		// Validate userId format
-		if (!userId || userId.length !== 24) {
+		if (!mongoose.Types.ObjectId.isValid(userId)) {
 			return res.status(400).json({
 				success: false,
 				message: "Invalid user ID format"
 			});
 		}
 
-		// Import scheduler to trigger manually
 		const { triggerDailyPredictionFetch } = require("../services/dailyPredictionScheduler");
 
-		// Trigger the fetch
-		await triggerDailyPredictionFetch();
+		await triggerDailyPredictionFetch({ userId });
 
 		res.status(200).json({
 			success: true,
