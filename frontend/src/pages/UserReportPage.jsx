@@ -4,7 +4,12 @@ import DailyPredictionTable from "../components/DailyPredictionTable";
 import MonthlyLineChartWithTable from "../components/MonthlyLineChartWithTable";
 import StatsStrip from "../components/StatsStrip";
 import UserProfileCard from "../components/UserProfileCard";
-import { fetchDailyPredictionsByUserId, fetchSolarReportByUserId, fetchUserById } from "../services/api";
+import {
+	fetchDailyPredictionsByUserId,
+	fetchSolarReportByUserId,
+	fetchUserById,
+	triggerDailyPredictionByUserId
+} from "../services/api";
 import { exportReportToExcel } from "../utils/exportToExcel";
 
 const UserReportPage = () => {
@@ -18,6 +23,7 @@ const UserReportPage = () => {
 	const [refreshing, setRefreshing] = useState(false);
 	const [error, setError] = useState("");
 	const [dailyPredictionError, setDailyPredictionError] = useState("");
+	const [fetchingDailyPrediction, setFetchingDailyPrediction] = useState(false);
 
 	const readPageData = useCallback(async () => {
 		const [userResult, reportResult, dailyPredictionResult] = await Promise.allSettled([
@@ -74,6 +80,21 @@ const UserReportPage = () => {
 			setRefreshing(false);
 		}
 	}, [applyPageData, readPageData]);
+
+	const handleFetchDailyPredictionNow = useCallback(async () => {
+		setFetchingDailyPrediction(true);
+		setDailyPredictionError("");
+
+		try {
+			await triggerDailyPredictionByUserId(userId);
+			const predictionData = await fetchDailyPredictionsByUserId(userId);
+			setDailyPredictions(Array.isArray(predictionData) ? predictionData : []);
+		} catch (err) {
+			setDailyPredictionError(err.message || "Failed to fetch daily prediction now.");
+		} finally {
+			setFetchingDailyPrediction(false);
+		}
+	}, [userId]);
 
 	useEffect(() => {
 		if (!userId) {
@@ -191,7 +212,12 @@ const UserReportPage = () => {
 									<>
 										<StatsStrip report={sourceData} source={reportSource} />
 										<MonthlyLineChartWithTable monthlyData={sourceData?.monthly_energy_kwh} />
-										<DailyPredictionTable predictions={dailyPredictions} error={dailyPredictionError} />
+										<DailyPredictionTable
+											predictions={dailyPredictions}
+											error={dailyPredictionError}
+											fetching={fetchingDailyPrediction}
+											onFetchNow={handleFetchDailyPredictionNow}
+										/>
 									</>
 								);
 							})()}

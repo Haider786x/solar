@@ -30,17 +30,27 @@ const formatNumber = (value, suffix = "") => {
 	return `${numberValue.toFixed(2)}${suffix}`;
 };
 
-const DailyPredictionTable = ({ predictions = [], loading = false, error = "" }) => {
+const DailyPredictionTable = ({ predictions = [], loading = false, error = "", fetching = false, onFetchNow }) => {
 	return (
 		<div className="rounded-2xl border border-slate-300/60 bg-white/90 p-4 shadow-lg backdrop-blur-sm">
-			<div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<div>
 					<h3 className="text-xl font-bold tracking-tight text-slate-900">Daily Prediction History</h3>
 					<p className="mt-1 text-sm text-slate-600">Predicted output compared with inverter readings</p>
 				</div>
-				<span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
-					6 days
-				</span>
+				<div className="flex flex-wrap items-center gap-2">
+					<button
+						type="button"
+						onClick={onFetchNow}
+						disabled={fetching || loading || !onFetchNow}
+						className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						{fetching ? "Fetching..." : "Fetch now"}
+					</button>
+					<span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
+						6 days
+					</span>
+				</div>
 			</div>
 
 			{loading && <p className="mt-3 text-sm font-semibold text-blue-700">Loading daily predictions...</p>}

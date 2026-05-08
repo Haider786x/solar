@@ -31,15 +31,24 @@ async function fetchJsonWithTimeout(url, timeoutMs = 30000) {
  * Keeps rolling 6-day window (today + previous 5 days)
  */
 async function fetchAndStoreDailyPredictions(options = {}) {
+	const result = {
+		totalUsers: 0,
+		stored: 0,
+		skipped: 0,
+		failed: 0,
+		errors: []
+	};
+
 	try {
 		console.log(`[Daily Prediction] Starting fetch at ${new Date().toISOString()}`);
 
 		const query = options.userId ? { _id: options.userId } : {};
 		const users = await UserData.find(query);
+		result.totalUsers = users.length;
 
 		if (!users.length) {
 			console.log("[Daily Prediction] No users found");
-			return;
+			return result;
 		}
 
 		const today = getDailyPredictionDate();
@@ -61,6 +70,11 @@ async function fetchAndStoreDailyPredictions(options = {}) {
 					!isFiniteNumber(azimuthDeg)
 				) {
 					console.log(`[Daily Prediction] Skipping user ${user._id} - missing location/system data`);
+					result.skipped += 1;
+					result.errors.push({
+						userId: String(user._id),
+						message: "Missing location or system data"
+					});
 					continue;
 				}
 
@@ -84,10 +98,11 @@ async function fetchAndStoreDailyPredictions(options = {}) {
 						avg_cloud_cover: prediction.avg_cloud_cover || 0,
 						inverter_real_time_kwh: "N/A"
 					},
-					{ upsert: true, new: true }
+					{ upsert: true, returnDocument: "after" }
 				);
 
 				console.log(`[Daily Prediction] Stored prediction for user ${user._id} on ${today}`);
+				result.stored += 1;
 
 				await DailyPrediction.deleteMany({
 					userId: user._id,
@@ -97,13 +112,22 @@ async function fetchAndStoreDailyPredictions(options = {}) {
 				console.log(`[Daily Prediction] Cleaned old predictions for user ${user._id} before ${cutoffDateStr}`);
 			} catch (err) {
 				console.error(`[Daily Prediction] Error processing user ${user._id}:`, err.message);
+				result.failed += 1;
+				result.errors.push({
+					userId: String(user._id),
+					message: err.message
+				});
 			}
 		}
 
 		console.log("[Daily Prediction] Batch fetch completed successfully");
 	} catch (err) {
 		console.error("[Daily Prediction] Scheduler error:", err.message);
+		result.failed += 1;
+		result.errors.push({ message: err.message });
 	}
+
+	return result;
 }
 
 /**
@@ -126,7 +150,7 @@ function initializeDailyPredictionScheduler() {
  */
 async function triggerDailyPredictionFetch(options = {}) {
 	console.log("[Daily Prediction] Manual trigger initiated");
-	await fetchAndStoreDailyPredictions(options);
+	return fetchAndStoreDailyPredictions(options);
 }
 
 module.exports = {

@@ -85,10 +85,26 @@ router.post("/:userId/daily-predictions/trigger", async (req, res) => {
 
 		const { triggerDailyPredictionFetch } = require("../services/dailyPredictionScheduler");
 
-		await triggerDailyPredictionFetch({ userId });
+		const result = await triggerDailyPredictionFetch({ userId });
+
+		if (result.totalUsers === 0) {
+			return res.status(404).json({
+				success: false,
+				message: "User data not found"
+			});
+		}
+
+		if (result.stored === 0) {
+			return res.status(502).json({
+				success: false,
+				message: result.errors[0]?.message || "Daily prediction could not be stored",
+				data: result
+			});
+		}
 
 		res.status(200).json({
 			success: true,
+			data: result,
 			message: "Daily prediction fetch triggered successfully"
 		});
 	} catch (err) {
