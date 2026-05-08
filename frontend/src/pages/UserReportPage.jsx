@@ -51,7 +51,7 @@ const UserReportPage = () => {
 	}, [userId, navigate]);
 
 	return (
-		<div className="min-h-screen bg-[radial-gradient(circle_at_12%_16%,#d7f8e7_0,transparent_42%),radial-gradient(circle_at_88%_20%,#d8e9ff_0,transparent_44%),linear-gradient(135deg,#eff4fb_0%,#edf8[...]">
+		<div className="min-h-screen bg-[radial-gradient(circle_at_12%_16%,#d7f8e7_0,transparent_42%),radial-gradient(circle_at_88%_20%,#d8e9ff_0,transparent_44%),linear-gradient(135deg,#eff4fb_0%,#edf8f9_100%)] px-3 py-5 sm:px-4 sm:py-6">
 			<div className="mx-auto max-w-7xl">
 				<div className="mb-5">
 					<p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Solar Report</p>
@@ -59,61 +59,76 @@ const UserReportPage = () => {
 				</div>
 
 				<div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:gap-3">
-					<button type="button" className="w-full rounded-xl border border-slate-400/60 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:-translate-y-0.5 hover:shadow-md" onClic[...]
-					<button type="button" className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg d[...]
+					<button 
+						type="button" 
+						onClick={() => navigate("/")}
+						className="w-full rounded-xl border border-slate-400/60 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:-translate-y-0.5 hover:shadow-md"
+					>
+						Back to Dashboard
+					</button>
+					<button 
+						type="button" 
+						onClick={() => loadPageData(true)}
+						disabled={refreshing}
+						className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
+					>
 						{refreshing ? "Refreshing..." : "Refresh report"}
 					</button>
 					{!loading && !error && report && (
-						<button type="button" className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg s[...]
+						<button 
+							type="button" 
+							onClick={() => exportReportToExcel(report, user)}
+							className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg"
+						>
 							Download Report
 						</button>
 					)}
 				</div>
 
-			{loading && <p className="px-1 py-3 text-sm font-semibold text-blue-700">Generating report from AIML...</p>}
-			{error && <p className="px-1 py-3 text-sm font-semibold text-rose-700">{error}</p>}
+				{loading && <p className="px-1 py-3 text-sm font-semibold text-blue-700">Generating report from AIML...</p>}
+				{error && <p className="px-1 py-3 text-sm font-semibold text-rose-700">{error}</p>}
 
-			{!loading && !error && (
-				<div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-					<UserProfileCard user={user} />
-					<div className="space-y-4">
-						{/* Tabs to switch between PVGIS and PVWATTS results saved in DB */}
-						<div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-100/60 p-1 backdrop-blur-sm">
-							<button
-								className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ease-out ${
-									reportSource === "pvgis"
-										? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-200 scale-105"
-										: "text-slate-600 hover:text-slate-900 hover:bg-white/40"
-								}`}
-								onClick={() => setReportSource("pvgis")}
-							>
-								PVGIS
-							</button>
-							<button
-								className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ease-out ${
-									reportSource === "pvwatts"
-										? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200 scale-105"
-										: "text-slate-600 hover:text-slate-900 hover:bg-white/40"
-								}`}
-								onClick={() => setReportSource("pvwatts")}
-							>
-								PVWATTS
-							</button>
+				{!loading && !error && (
+					<div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
+						<UserProfileCard user={user} />
+						<div className="space-y-4">
+							{/* Tabs to switch between PVGIS and PVWATTS results saved in DB */}
+							<div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-100/60 p-1 backdrop-blur-sm">
+								<button
+									className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ease-out ${
+										reportSource === "pvgis"
+											? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-200 scale-105"
+											: "text-slate-600 hover:text-slate-900 hover:bg-white/40"
+									}`}
+									onClick={() => setReportSource("pvgis")}
+								>
+									PVGIS
+								</button>
+								<button
+									className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ease-out ${
+										reportSource === "pvwatts"
+											? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200 scale-105"
+											: "text-slate-600 hover:text-slate-900 hover:bg-white/40"
+									}`}
+									onClick={() => setReportSource("pvwatts")}
+								>
+									PVWATTS
+								</button>
+							</div>
+
+							{/* Choose data from report.pvgis or report.pvwatts; fall back to top-level report */}
+							{(() => {
+								const sourceData = report?.[reportSource] ?? report ?? null;
+								return (
+									<>
+										<StatsStrip report={sourceData} source={reportSource} />
+										<MonthlyLineChartWithTable monthlyData={sourceData?.monthly_energy_kwh} />
+									</>
+								);
+							})()}
 						</div>
-
-						{/* Choose data from report.pvgis or report.pvwatts; fall back to top-level report */}
-						{(() => {
-							const sourceData = report?.[reportSource] ?? report ?? null;
-							return (
-								<>
-									<StatsStrip report={sourceData} source={reportSource} />
-									<MonthlyLineChartWithTable monthlyData={sourceData?.monthly_energy_kwh} />
-								</>
-							);
-						})()}
 					</div>
-				</div>
-			)}
+				)}
 			</div>
 		</div>
 	);
