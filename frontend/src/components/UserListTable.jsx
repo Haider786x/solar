@@ -1,4 +1,4 @@
-const UserListTable = ({ users, onSelectUser }) => {
+const UserListTable = ({ users, onSelectUser, onDeleteUser, onEditUser }) => {
 	if (!users.length) {
 		return (
 			<div className="p-6 text-center text-sm font-semibold text-slate-600">
@@ -9,7 +9,7 @@ const UserListTable = ({ users, onSelectUser }) => {
 
 	return (
 		<div className="overflow-x-auto">
-			<table className="min-w-[900px] w-full border-collapse text-left text-sm text-slate-700">
+			<table className="min-w-[780px] w-full border-collapse text-left text-sm text-slate-700">
 				<thead>
 					<tr className="bg-slate-50/60">
 						<th className="border-b border-slate-200 px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">Name</th>
@@ -38,14 +38,34 @@ const UserListTable = ({ users, onSelectUser }) => {
 							</td>
 							<td className="border-b border-slate-100 px-5 py-4 whitespace-nowrap text-slate-600">{user.location.latitude}, {user.location.longitude}</td>
 							<td className="border-b border-slate-100 px-5 py-4 text-right whitespace-nowrap">
-								<button
-									type="button"
-									className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-white px-4 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
-									onClick={() => onSelectUser(user._id)}
-								>
-									Open report
-									<span aria-hidden="true">→</span>
-								</button>
+								<div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-end">
+									<button
+										type="button"
+										className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-white px-4 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
+										onClick={() => onSelectUser(user._id)}
+									>
+										Open report
+										<span aria-hidden="true">→</span>
+									</button>
+									{onEditUser && (
+										<button
+											type="button"
+											className="inline-flex items-center gap-2 rounded-full border border-blue-300 bg-white px-4 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+											onClick={() => onEditUser(user)}
+										>
+											Edit
+										</button>
+									)}
+									{onDeleteUser && (
+										<button
+											type="button"
+											className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+											onClick={() => onDeleteUser(user._id)}
+										>
+											Delete
+										</button>
+									)}
+								</div>
 							</td>
 						</tr>
 					))}

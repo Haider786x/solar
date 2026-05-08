@@ -9,10 +9,13 @@ from fastapi import HTTPException
 import requests
 from dotenv import load_dotenv
 import os
+from solar_prediction import predict_daily_generation
 
 load_dotenv()
 
 PVWATTS_API_KEY = os.getenv("PVWATTS_API_KEY")
+
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 app = FastAPI()
 
@@ -40,19 +43,75 @@ class SolarInput(BaseModel):
         default=[2, 3, 2, 1],
         description="List of loss percentages"
     )
+    dc_ac_ratio: float = Field(
+        default=1.2,
+        ge=0.8,
+        le=2.0
+    )
+
+    inv_efficiency: float = Field(
+        default=98.0,
+        ge=98.0,
+        le=99.9
+    )
+
+    bifaciality: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0
+    )
+
+
+def _extract_numeric_value(value, default=0.0):
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    if isinstance(value, dict):
+        for key in ("E_m", "E_y", "value", "energy", "kwh", "ac_monthly", "month_energy"):
+            if key in value:
+                return _extract_numeric_value(value[key], default)
+
+        if len(value) == 1:
+            return _extract_numeric_value(next(iter(value.values())), default)
+
+    return float(default)
+
+
+def _normalize_monthly_energy(monthly_energy):
+    normalized = {month: 0.0 for month in MONTHS}
+
+    if isinstance(monthly_energy, dict):
+        for month in MONTHS:
+            value = monthly_energy.get(month)
+            if value is None:
+                value = monthly_energy.get(month.lower())
+            normalized[month] = _extract_numeric_value(value, 0.0)
+        return normalized
+
+    if isinstance(monthly_energy, list):
+        for index, month in enumerate(MONTHS):
+            if index < len(monthly_energy):
+                normalized[month] = _extract_numeric_value(monthly_energy[index], 0.0)
+        return normalized
+
+    if monthly_energy is not None:
+        scalar_value = _extract_numeric_value(monthly_energy, 0.0)
+        return {month: scalar_value for month in MONTHS}
+
+    return normalized
 
 
 def call_pvgis(data: SolarInput):
     url = "https://re.jrc.ec.europa.eu/api/v5_2/PVcalc"
 
-    # 🔥 Increase realistic losses
+    # realistic losses
     total_losses = max(sum(data.losses), 15)
 
     params = {
         "lat": data.lat,
         "lon": data.lon,
         "peakpower": data.system_size_kw,
-        "loss": total_losses,   # 🔥 key change
+        "loss": total_losses,
         "angle": data.tilt,
         "aspect": data.azimuth - 180,
         "outputformat": "json"
@@ -61,20 +120,41 @@ def call_pvgis(data: SolarInput):
     response = requests.get(url, params=params)
     result = response.json()
 
+    annual_energy = result["outputs"]["totals"]["fixed"]["E_y"]
+    monthly_energy = result["outputs"]["monthly"]["fixed"]
+
+    # 🔥 APPLY EXTRA FACTORS MANUALLY
+
+    # inverter efficiency correction
+    annual_energy *= (data.inv_efficiency / 100)
+
+    # bifacial gain approximation
+    annual_energy *= (1 + (data.bifaciality * 0.10))
+
+    monthly_energy = _normalize_monthly_energy(monthly_energy)
+    monthly_energy = {
+        month: value * (data.inv_efficiency / 100) * (1 + (data.bifaciality * 0.10))
+        for month, value in monthly_energy.items()
+    }
+
     return {
         "source": "PVGIS",
         "mode": "realistic",
-        "annual_energy_kwh": result["outputs"]["totals"]["fixed"]["E_y"],
-        "monthly_energy_kwh": result["outputs"]["monthly"]["fixed"]
-    }
 
+        "dc_ac_ratio": data.dc_ac_ratio,
+        "inv_efficiency": data.inv_efficiency,
+        "bifaciality": data.bifaciality,
+
+        "annual_energy_kwh": annual_energy,
+        "monthly_energy_kwh": monthly_energy
+    }
 
 
 
 def call_pvwatts(data: SolarInput):
     url = "https://developer.nrel.gov/api/pvwatts/v8.json"
 
-    # 🔥 Use realistic default if user gives low loss
+    # realistic losses
     total_losses = max(sum(data.losses), 15)
 
     params = {
@@ -85,23 +165,53 @@ def call_pvwatts(data: SolarInput):
         "tilt": data.tilt,
         "azimuth": data.azimuth,
 
-        # 🔥 CALIBRATION PARAMETERS
+        # calibration
         "losses": total_losses,
-        "array_type": 0,      # rooftop (realistic)
-        "module_type": 0,     # standard module
-        "dc_ac_ratio": 1.1    # slightly conservative
+        "array_type": 0,
+        "module_type": 0,
+
+        # 🔥 NEW
+        "dc_ac_ratio": data.dc_ac_ratio,
+        "inv_eff": data.inv_efficiency
     }
 
-    response = requests.get(url, params=params)
-    result = response.json()
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"PVWatts request failed: {exc}")
+
+    if isinstance(result, dict) and result.get("errors"):
+        raise HTTPException(status_code=502, detail=f"PVWatts error: {result.get('errors')}")
+
+    outputs = result.get("outputs", {}) if isinstance(result, dict) else {}
+    annual_energy = _extract_numeric_value(outputs.get("ac_annual"), 0.0)
+    monthly_energy = outputs.get("ac_monthly", [])
+
+    # inverter efficiency correction
+    annual_energy *= (data.inv_efficiency / 100)
+
+    # bifacial gain correction
+    annual_energy *= (1 + (data.bifaciality * 0.10))
+
+    monthly_energy = _normalize_monthly_energy(monthly_energy)
+    monthly_energy = {
+        month: value * (data.inv_efficiency / 100) * (1 + (data.bifaciality * 0.10))
+        for month, value in monthly_energy.items()
+    }
 
     return {
         "source": "PVWatts",
         "mode": "realistic",
-        "annual_energy_kwh": result["outputs"]["ac_annual"],
-        "monthly_energy_kwh": result["outputs"]["ac_monthly"]
-    }
 
+        "dc_ac_ratio": data.dc_ac_ratio,
+        "inv_efficiency": data.inv_efficiency,
+        "bifaciality": data.bifaciality,
+
+        "annual_energy_kwh": annual_energy,
+        "monthly_energy_kwh": monthly_energy
+    }
 
 class SavingsInput(BaseModel):
     connected_load_kw: float   # sanctioned load (max installable)
@@ -159,6 +269,25 @@ def predict_pvgis(data: SolarInput):
 @app.post("/predict2")
 def predict_pvwatts(data: SolarInput):
     return call_pvwatts(data)
+
+@app.get("/predict-today")
+def predict_today(
+    lat: float,
+    lon: float,
+    capacity_kw: float,
+    tilt: float,
+    azimuth: float
+):
+
+    result = predict_daily_generation(
+        lat=lat,
+        lon=lon,
+        capacity_kw=capacity_kw,
+        tilt=tilt,
+        azimuth=azimuth
+    )
+
+    return result
 
 
 @app.post("/savings")

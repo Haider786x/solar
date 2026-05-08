@@ -7,9 +7,9 @@ const MonthlyLineChart = ({ monthlyData = {} }) => {
 	const maxValue = Math.max(...values, 1);
 	const [hoveredIndex, setHoveredIndex] = useState(null);
 
-	const width = 860;
-	const height = 300;
-	const padding = 36;
+	const width = 760;
+	const height = 280;
+	const padding = 32;
 
 	const chartPoints = useMemo(
 		() => values.map((value, index) => {
@@ -32,10 +32,10 @@ const MonthlyLineChart = ({ monthlyData = {} }) => {
 				<h3 className="text-xl font-bold tracking-tight text-slate-900">Monthly Solar Generation</h3>
 				<p className="mt-1 text-sm text-slate-600">kWh trend from Jan to Dec. Hover points for exact values.</p>
 			</div>
-			<div className="mt-3 w-full overflow-x-auto">
+			<div className="mt-3 overflow-x-auto">
 				<svg
 					viewBox={`0 0 ${width} ${height}`}
-					className="block h-auto min-w-[760px] w-full"
+					className="block h-auto w-[760px] max-w-none sm:w-full sm:max-w-full"
 					role="img"
 					aria-label="Monthly solar report line chart"
 					onMouseLeave={() => setHoveredIndex(null)}

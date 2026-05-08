@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import UserListTable from "../components/UserListTable";
 import MapPicker from "../components/MapPicker";
 import RegionalMap from "../components/RegionalMap";
-import { createUser, fetchUsers } from "../services/api";
+import { createUser, fetchUsers, deleteUser, updateUser } from "../services/api";
 
 const DEFAULT_FORM = {
 	name: "",
@@ -14,11 +14,13 @@ const DEFAULT_FORM = {
 	systemCapacity: "",
 	tiltDeg: "",
 	azimuthDeg: "",
-	shadingFactor: "0.9",
 	soilingLossPercent: "2",
 	inverterLossPercent: "3",
 	wiringLossPercent: "2",
-	miscLossPercent: "1"
+	miscLossPercent: "1",
+    dc_ac_ratio: "1.2",
+    inv_efficiency: "98",
+    bifaciality: "0"
 };
 
 const UsersDashboardPage = () => {
@@ -31,6 +33,9 @@ const UsersDashboardPage = () => {
 	const [submitError, setSubmitError] = useState("");
 	const [formData, setFormData] = useState(DEFAULT_FORM);
 	const [searchText, setSearchText] = useState("");
+	const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, userId: null, userName: "" });
+	const [isDeleting, setIsDeleting] = useState(false);
+	const [editingUserId, setEditingUserId] = useState(null);
 
 	const loadUsers = useCallback(async () => {
 		setLoading(true);
@@ -55,7 +60,57 @@ const UsersDashboardPage = () => {
 		setFormData((prev) => ({ ...prev, [name]: value }));
 	};
 
-	const handleCreateUser = async (event) => {
+	const handleDeleteClick = (userId, userName) => {
+		setDeleteConfirm({
+			isOpen: true,
+			userId: userId,
+			userName: userName
+		});
+	};
+
+	const handleConfirmDelete = async () => {
+		setIsDeleting(true);
+
+		try {
+			await deleteUser(deleteConfirm.userId);
+			setDeleteConfirm({ isOpen: false, userId: null, userName: "" });
+			await loadUsers();
+		} catch (err) {
+			console.error("Failed to delete user:", err);
+			setDeleteConfirm({ isOpen: false, userId: null, userName: "" });
+		} finally {
+			setIsDeleting(false);
+		}
+	};
+
+	const handleCancelDelete = () => {
+		setDeleteConfirm({ isOpen: false, userId: null, userName: "" });
+	};
+
+	const handleEditUser = (user) => {
+		setEditingUserId(user._id);
+		setFormData({
+			name: user.name,
+			email: user.email,
+			phoneNumber: user.phoneNumber,
+			latitude: String(user.location?.latitude ?? ""),
+			longitude: String(user.location?.longitude ?? ""),
+			systemCapacity: String(user.systemCapacity),
+			tiltDeg: String(user.tiltDeg),
+			azimuthDeg: String(user.azimuthDeg),
+			soilingLossPercent: String(user.soilingLossPercent),
+			inverterLossPercent: String(user.inverterLossPercent),
+			wiringLossPercent: String(user.wiringLossPercent),
+			miscLossPercent: String(user.miscLossPercent),
+			dc_ac_ratio: String(user.dc_ac_ratio ?? 1.2),
+			inv_efficiency: String(user.inv_efficiency ?? 98),
+			bifaciality: String(user.bifaciality ?? 0)
+		});
+		setIsFormOpen(true);
+		setSubmitError("");
+	};
+
+	const handleSubmitForm = async (event) => {
 		event.preventDefault();
 		setSubmitError("");
 		setIsSubmitting(true);
@@ -72,22 +127,38 @@ const UsersDashboardPage = () => {
 				systemCapacity: Number(formData.systemCapacity),
 				tiltDeg: Number(formData.tiltDeg),
 				azimuthDeg: Number(formData.azimuthDeg),
-				shadingFactor: Number(formData.shadingFactor),
+				shadingFactor: 0.95,
 				soilingLossPercent: Number(formData.soilingLossPercent),
 				inverterLossPercent: Number(formData.inverterLossPercent),
 				wiringLossPercent: Number(formData.wiringLossPercent),
-				miscLossPercent: Number(formData.miscLossPercent)
+				miscLossPercent: Number(formData.miscLossPercent),
+				dc_ac_ratio: Number(formData.dc_ac_ratio),
+				inv_efficiency: Number(formData.inv_efficiency),
+				bifaciality: Number(formData.bifaciality)
 			};
 
-			await createUser(payload);
+			if (editingUserId) {
+				await updateUser(editingUserId, payload);
+			} else {
+				await createUser(payload);
+			}
+
 			setIsFormOpen(false);
+			setEditingUserId(null);
 			setFormData(DEFAULT_FORM);
 			await loadUsers();
 		} catch (err) {
-			setSubmitError(err.message || "Could not create user");
+			setSubmitError(err.message || (editingUserId ? "Could not update user" : "Could not create user"));
 		} finally {
 			setIsSubmitting(false);
 		}
+	};
+
+	const handleCloseForm = () => {
+		setIsFormOpen(false);
+		setEditingUserId(null);
+		setFormData(DEFAULT_FORM);
+		setSubmitError("");
 	};
 
 	const filteredUsers = useMemo(() => {
@@ -121,7 +192,7 @@ const UsersDashboardPage = () => {
 						S
 					</div> */}
 					<div className="px-4">
-						<p className="text-lg font-black leading-none text-slate-900">SolarWizer</p>
+						<p className="text-lg font-black leading-none text-slate-900">SolarWiser</p>
 						<p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-slate-500">Energy Management</p>
 					</div>
 				</div>
@@ -157,9 +228,12 @@ const UsersDashboardPage = () => {
 				</div>
 			</aside>
 
-			<header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 px-4 py-3 backdrop-blur-xl lg:pl-[17.5rem] lg:pr-8">
+			<header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 px-3 py-3 backdrop-blur-xl sm:px-4 lg:pl-[17.5rem] lg:pr-8">
 				<div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-					<div className="hidden text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 sm:block">Dashboard Console</div>
+					<div>
+						<div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 sm:text-xs">Dashboard Console</div>
+						<p className="text-sm font-bold text-slate-800 lg:hidden">SolarWizer Users</p>
+					</div>
 					<div className="flex w-full items-center justify-end gap-3 sm:w-auto">
 						<div className="w-full rounded-full border-2 border-emerald-300/90 bg-white shadow-[0_0_0_4px_rgba(16,185,129,0.12)] transition focus-within:border-emerald-500 focus-within:shadow-[0_0_0_5px_rgba(16,185,129,0.2)] sm:w-80">
 							<input
@@ -175,15 +249,40 @@ const UsersDashboardPage = () => {
 				</div>
 			</header>
 
-			<main className="px-4 py-6 lg:pl-[17.5rem] lg:pr-8">
+			<div className="px-3 pt-3 sm:px-4 lg:hidden">
+				<div className="mx-auto grid max-w-7xl grid-cols-1 gap-2 sm:grid-cols-2">
+					<button
+						type="button"
+						className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+						onClick={() => {
+							setSubmitError("");
+							setIsFormOpen(true);
+						}}
+					>
+						Add New User
+					</button>
+					<button
+						type="button"
+						className="rounded-xl bg-gradient-to-r from-emerald-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:-translate-y-0.5 hover:shadow-lg"
+						onClick={() => {
+							setSubmitError("");
+							setIsFormOpen(true);
+						}}
+					>
+						New Installation
+					</button>
+				</div>
+			</div>
+
+			<main className="px-3 py-5 sm:px-4 sm:py-6 lg:pl-[17.5rem] lg:pr-8">
 				<div className="mx-auto max-w-7xl space-y-5">
 					<section className="space-y-2">
 						<p className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-800">SolarWizer Dashboard</p>
-						<h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">User Data Overview</h1>
-						<p className="max-w-3xl text-sm text-slate-600 md:text-base">Choose any user to generate and view their monthly solar report from the AIML pipeline. Monitor pipeline health and user installation trends.</p>
+						<h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">User Data Overview</h1>
+						<p className="max-w-3xl text-sm text-slate-600 sm:text-base">Choose any user to generate and view their monthly solar report from the AIML pipeline. Monitor pipeline health and user installation trends.</p>
 					</section>
 
-					<section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+					<section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
 						<div className="rounded-2xl border border-slate-200/80 bg-white/88 p-4 shadow-sm">
 							<p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Capacity</p>
 							<p className="mt-2 text-2xl font-bold text-slate-900">{totalCapacity.toFixed(1)} kW</p>
@@ -194,11 +293,11 @@ const UsersDashboardPage = () => {
 							<p className="mt-2 text-2xl font-bold text-slate-900">{users.length}</p>
 							<p className="mt-1 text-xs text-slate-500">Registered profiles</p>
 						</div>
-						<div className="rounded-2xl border border-slate-200/80 bg-white/88 p-4 shadow-sm md:col-span-2">
+						<div className="rounded-2xl border border-slate-200/80 bg-white/88 p-4 shadow-sm md:col-span-2 xl:col-span-2">
 							<p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pipeline Status</p>
-							<div className="mt-2 flex items-center justify-between gap-4">
+							<div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 								<div>
-									<p className="text-2xl font-bold text-slate-900">System Optimal</p>
+									<p className="text-xl font-bold text-slate-900 sm:text-2xl">System Optimal</p>
 									<p className="mt-1 text-xs text-slate-500">{regionCount} active coordinate regions monitored</p>
 								</div>
 								<div className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Live</div>
@@ -207,7 +306,7 @@ const UsersDashboardPage = () => {
 					</section>
 
 					<section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-lg">
-						<div className="flex items-center justify-between border-b border-slate-200/70 bg-slate-50/70 px-5 py-3">
+						<div className="flex flex-col gap-1 border-b border-slate-200/70 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
 							<h3 className="text-xs font-bold uppercase tracking-[0.14em] text-slate-700">User Repositories</h3>
 							<p className="text-xs text-slate-500">Showing {filteredUsers.length} of {users.length} users</p>
 						</div>
@@ -217,7 +316,10 @@ const UsersDashboardPage = () => {
 						{!loading && !error && (
 							<UserListTable
 								users={filteredUsers}
-								onSelectUser={(userId) => navigate(`/users/${userId}/report`)}
+								onSelectUser={(userId) => navigate(`/users/${userId}/report`)}									onEditUser={handleEditUser}								onDeleteUser={(userId) => {
+									const user = users.find(u => u._id === userId);
+									handleDeleteClick(userId, user?.name || "User");
+								}}
 							/>
 						)}
 					</section>
@@ -234,7 +336,7 @@ const UsersDashboardPage = () => {
 									Live Monitor
 								</div>
 							</div>
-							<div className="h-72 w-full overflow-hidden rounded-b-2xl">
+							<div className="h-56 w-full overflow-hidden rounded-b-2xl sm:h-72">
 								<RegionalMap users={users} />
 							</div>
 						</div>
@@ -258,23 +360,27 @@ const UsersDashboardPage = () => {
 			</main>
 
 			{isFormOpen && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true">
-					<div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-300/60 bg-white p-5 shadow-2xl">
+				<div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/45 p-3 pt-6 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+					<div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-300/60 bg-white p-4 shadow-2xl sm:p-5">
 						<div className="mb-4 flex items-center justify-between gap-3">
 							<div>
-								<h3 className="text-2xl font-bold tracking-tight text-slate-900">Add New User</h3>
-								<p className="mt-1 text-sm text-slate-600">Fill in all required fields to create a user profile.</p>
+								<h3 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+									{editingUserId ? "Edit User" : "Add New User"}
+								</h3>
+								<p className="mt-1 text-sm text-slate-600">
+									{editingUserId ? "Update user information and settings." : "Fill in all required fields to create a user profile."}
+								</p>
 							</div>
 							<button
 								type="button"
 								className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-								onClick={() => setIsFormOpen(false)}
+								onClick={handleCloseForm}
 							>
 								Close
 							</button>
 						</div>
 
-						<form className="grid gap-3 md:grid-cols-2" onSubmit={handleCreateUser}>
+						<form className="grid gap-2.5 md:grid-cols-2 md:gap-3" onSubmit={handleSubmitForm}>
 							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="name" value={formData.name} onChange={handleFormFieldChange} placeholder="Full name" required />
 							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="email" type="email" value={formData.email} onChange={handleFormFieldChange} placeholder="Email" required />
 							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="phoneNumber" value={formData.phoneNumber} onChange={handleFormFieldChange} placeholder="Phone number" required />
@@ -290,19 +396,48 @@ const UsersDashboardPage = () => {
 							/>
 							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="tiltDeg" type="number" step="0.1" value={formData.tiltDeg} onChange={handleFormFieldChange} placeholder="Tilt (deg)" required />
 							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="azimuthDeg" type="number" step="0.1" value={formData.azimuthDeg} onChange={handleFormFieldChange} placeholder="Azimuth (deg)" required />
-							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="shadingFactor" type="number" step="0.01" value={formData.shadingFactor} onChange={handleFormFieldChange} placeholder="Shading factor" required />
-							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="soilingLossPercent" type="number" step="0.1" value={formData.soilingLossPercent} onChange={handleFormFieldChange} placeholder="Soiling loss (%)" required />
-							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="inverterLossPercent" type="number" step="0.1" value={formData.inverterLossPercent} onChange={handleFormFieldChange} placeholder="Inverter loss (%)" required />
-							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm" name="wiringLossPercent" type="number" step="0.1" value={formData.wiringLossPercent} onChange={handleFormFieldChange} placeholder="Wiring loss (%)" required />
-							<input className="rounded-lg border border-slate-300 px-3 py-2 text-sm md:col-span-2" name="miscLossPercent" type="number" step="0.1" value={formData.miscLossPercent} onChange={handleFormFieldChange} placeholder="Misc loss (%)" required />
+
+							<div className="flex w-full flex-col">
+								<label htmlFor="soilingLossPercent" className="mb-1 text-xs font-semibold text-slate-600">Soiling loss (%)</label>
+								<input id="soilingLossPercent" name="soilingLossPercent" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.1" value={formData.soilingLossPercent} onChange={handleFormFieldChange} placeholder="e.g. 2" required />
+							</div>
+
+							<div className="flex w-full flex-col">
+								<label htmlFor="inverterLossPercent" className="mb-1 text-xs font-semibold text-slate-600">Inverter loss (%)</label>
+								<input id="inverterLossPercent" name="inverterLossPercent" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.1" value={formData.inverterLossPercent} onChange={handleFormFieldChange} placeholder="e.g. 3" required />
+							</div>
+
+							<div className="flex w-full flex-col">
+								<label htmlFor="wiringLossPercent" className="mb-1 text-xs font-semibold text-slate-600">Wiring loss (%)</label>
+								<input id="wiringLossPercent" name="wiringLossPercent" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.1" value={formData.wiringLossPercent} onChange={handleFormFieldChange} placeholder="e.g. 2" required />
+							</div>
+
+							<div className="flex w-full flex-col md:col-span-2">
+								<label htmlFor="miscLossPercent" className="mb-1 text-xs font-semibold text-slate-600">Misc loss (%)</label>
+								<input id="miscLossPercent" name="miscLossPercent" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.1" value={formData.miscLossPercent} onChange={handleFormFieldChange} placeholder="e.g. 1" required />
+							</div>
+							<div className="flex w-full flex-col">
+								<label htmlFor="dc_ac_ratio" className="mb-1 text-xs font-semibold text-slate-600">DC/AC ratio</label>
+								<input id="dc_ac_ratio" name="dc_ac_ratio" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.01" value={formData.dc_ac_ratio} onChange={handleFormFieldChange} placeholder="e.g. 1.2" required />
+							</div>
+
+							<div className="flex w-full flex-col">
+								<label htmlFor="inv_efficiency" className="mb-1 text-xs font-semibold text-slate-600">Inverter efficiency (%)</label>
+								<input id="inv_efficiency" name="inv_efficiency" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.1" value={formData.inv_efficiency} onChange={handleFormFieldChange} placeholder="e.g. 98" required />
+							</div>
+
+							<div className="flex w-full flex-col">
+								<label htmlFor="bifaciality" className="mb-1 text-xs font-semibold text-slate-600">Bifaciality</label>
+								<input id="bifaciality" name="bifaciality" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" type="number" step="0.01" value={formData.bifaciality} onChange={handleFormFieldChange} placeholder="e.g. 0" required />
+							</div>
 
 							{submitError && <p className="md:col-span-2 text-sm font-semibold text-rose-700">{submitError}</p>}
 
-							<div className="md:col-span-2 mt-1 flex flex-wrap justify-end gap-2">
+							<div className="mt-1 flex flex-wrap justify-end gap-2 md:col-span-2">
 								<button
 									type="button"
 									className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-									onClick={() => setIsFormOpen(false)}
+									onClick={handleCloseForm}
 								>
 									Cancel
 								</button>
@@ -311,10 +446,42 @@ const UsersDashboardPage = () => {
 									className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
 									disabled={isSubmitting}
 								>
-									{isSubmitting ? "Saving..." : "Create User"}
+										{isSubmitting ? "Saving..." : editingUserId ? "Update User" : "Create User"}
 								</button>
 							</div>
 						</form>
+					</div>
+				</div>
+			)}
+
+			{deleteConfirm.isOpen && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3" role="dialog" aria-modal="true">
+					<div className="w-full max-w-sm rounded-2xl border border-slate-300/60 bg-white p-6 shadow-2xl">
+						<div className="mb-4">
+							<h3 className="text-xl font-bold tracking-tight text-slate-900">Delete User</h3>
+							<p className="mt-2 text-sm text-slate-600">
+								Are you sure you want to delete <span className="font-semibold text-slate-900">{deleteConfirm.userName}</span>? This action cannot be undone and will remove all associated data.
+							</p>
+						</div>
+
+						<div className="flex flex-wrap justify-end gap-2">
+							<button
+								type="button"
+								className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+								onClick={handleCancelDelete}
+								disabled={isDeleting}
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+								onClick={handleConfirmDelete}
+								disabled={isDeleting}
+							>
+								{isDeleting ? "Deleting..." : "Delete User"}
+							</button>
+						</div>
 					</div>
 				</div>
 			)}
