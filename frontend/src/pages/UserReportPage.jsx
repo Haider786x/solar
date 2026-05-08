@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import MonthlyLineChart from "../components/MonthlyLineChart";
+import MonthlyLineChartWithTable from "../components/MonthlyLineChartWithTable";
 import StatsStrip from "../components/StatsStrip";
 import UserProfileCard from "../components/UserProfileCard";
 import { fetchSolarReportByUserId, fetchUserById } from "../services/api";
@@ -51,7 +51,7 @@ const UserReportPage = () => {
 	}, [userId, navigate]);
 
 	return (
-		<div className="min-h-screen bg-[radial-gradient(circle_at_12%_16%,#d7f8e7_0,transparent_42%),radial-gradient(circle_at_88%_20%,#d8e9ff_0,transparent_44%),linear-gradient(135deg,#eff4fb_0%,#edf8f4_55%,#f6f2fe_100%)] px-3 py-6 sm:px-4 sm:py-8">
+		<div className="min-h-screen bg-[radial-gradient(circle_at_12%_16%,#d7f8e7_0,transparent_42%),radial-gradient(circle_at_88%_20%,#d8e9ff_0,transparent_44%),linear-gradient(135deg,#eff4fb_0%,#edf8[...]">
 			<div className="mx-auto max-w-7xl">
 				<div className="mb-5">
 					<p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Solar Report</p>
@@ -59,12 +59,12 @@ const UserReportPage = () => {
 				</div>
 
 				<div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:gap-3">
-					<button type="button" className="w-full rounded-xl border border-slate-400/60 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => navigate("/")}>Back to all users</button>
-					<button type="button" className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70" onClick={() => loadPageData(true)} disabled={refreshing}>
+					<button type="button" className="w-full rounded-xl border border-slate-400/60 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:-translate-y-0.5 hover:shadow-md" onClic[...]
+					<button type="button" className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg d[...]
 						{refreshing ? "Refreshing..." : "Refresh report"}
 					</button>
 					{!loading && !error && report && (
-						<button type="button" className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg sm:col-span-2 lg:col-span-1" onClick={() => exportReportToExcel(user, report).catch(console.error)}>
+						<button type="button" className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg s[...]
 							Download Report
 						</button>
 					)}
@@ -107,7 +107,7 @@ const UserReportPage = () => {
 							return (
 								<>
 									<StatsStrip report={sourceData} source={reportSource} />
-									<MonthlyLineChart monthlyData={sourceData?.monthly_energy_kwh} />
+									<MonthlyLineChartWithTable monthlyData={sourceData?.monthly_energy_kwh} />
 								</>
 							);
 						})()}
