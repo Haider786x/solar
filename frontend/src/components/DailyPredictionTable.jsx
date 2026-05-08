@@ -31,23 +31,26 @@ const formatNumber = (value, suffix = "") => {
 };
 
 const DailyPredictionTable = ({ predictions = [], loading = false, error = "", fetching = false, onFetchNow }) => {
+	const latestPrediction = predictions[0];
+	const totalPredicted = predictions.reduce((sum, prediction) => sum + Number(prediction.predicted_kwh ?? 0), 0);
+
 	return (
-		<div className="rounded-2xl border border-slate-300/60 bg-white/90 p-4 shadow-lg backdrop-blur-sm">
+		<div className="rounded-2xl border border-slate-300/60 bg-white/90 p-5 shadow-lg backdrop-blur-sm">
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<div>
-					<h3 className="text-xl font-bold tracking-tight text-slate-900">Daily Prediction History</h3>
-					<p className="mt-1 text-sm text-slate-600">Predicted output compared with inverter readings</p>
+					<h3 className="text-2xl font-bold tracking-tight text-slate-900">Daily Prediction History</h3>
+					<p className="mt-1 text-sm text-slate-600">Today and previous five fetched records, captured daily at 7 PM</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
 					<button
 						type="button"
 						onClick={onFetchNow}
 						disabled={fetching || loading || !onFetchNow}
-						className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+						className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						{fetching ? "Fetching..." : "Fetch now"}
 					</button>
-					<span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
+					<span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-800">
 						6 days
 					</span>
 				</div>
@@ -56,8 +59,32 @@ const DailyPredictionTable = ({ predictions = [], loading = false, error = "", f
 			{loading && <p className="mt-3 text-sm font-semibold text-blue-700">Loading daily predictions...</p>}
 			{error && <p className="mt-3 text-sm font-semibold text-rose-700">{error}</p>}
 
+			{!loading && !error && predictions.length > 0 && (
+				<div className="mt-5 grid border-y border-slate-200 py-4 sm:grid-cols-2 xl:grid-cols-4">
+					<div className="px-1 py-2 sm:px-3">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest Date</p>
+						<p className="mt-1 text-xl font-bold text-slate-900">{formatDate(latestPrediction?.date)}</p>
+					</div>
+					<div className="px-1 py-2 sm:px-3">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest Predicted</p>
+						<p className="mt-1 text-xl font-bold text-emerald-700">{formatNumber(latestPrediction?.predicted_kwh, " kWh")}</p>
+					</div>
+					<div className="px-1 py-2 sm:px-3">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">6-Day Predicted</p>
+						<p className="mt-1 text-xl font-bold text-blue-700">{formatNumber(totalPredicted, " kWh")}</p>
+					</div>
+					<div className="px-1 py-2 sm:px-3">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inverter API</p>
+						<p className="mt-1 text-xl font-bold text-slate-900">{formatNumber(latestPrediction?.inverter_real_time_kwh)}</p>
+					</div>
+				</div>
+			)}
+
 			{!loading && !error && predictions.length === 0 && (
-				<p className="mt-3 text-sm font-medium text-slate-600">No daily prediction records are available yet.</p>
+				<div className="mt-5 border-y border-slate-200 py-8 text-center">
+					<p className="text-base font-semibold text-slate-800">No daily prediction records are available yet.</p>
+					<p className="mt-1 text-sm text-slate-600">Use Fetch now once, or let the 7 PM scheduler capture today automatically.</p>
+				</div>
 			)}
 
 			{!loading && !error && predictions.length > 0 && (

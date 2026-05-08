@@ -19,6 +19,7 @@ const UserReportPage = () => {
 	const [report, setReport] = useState(null);
 	const [dailyPredictions, setDailyPredictions] = useState([]);
 	const [reportSource, setReportSource] = useState("pvgis");
+	const [activeReportTab, setActiveReportTab] = useState("monthly");
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [error, setError] = useState("");
@@ -139,6 +140,8 @@ const UserReportPage = () => {
 		};
 	}, [userId, navigate, readPageData, applyPageData]);
 
+	const selectedReportData = report?.[reportSource] ?? report ?? null;
+
 	return (
 		<div className="min-h-screen bg-[radial-gradient(circle_at_12%_16%,#d7f8e7_0,transparent_42%),radial-gradient(circle_at_88%_20%,#d8e9ff_0,transparent_44%),linear-gradient(135deg,#eff4fb_0%,#edf8f9_100%)] px-3 py-5 sm:px-4 sm:py-6">
 			<div className="mx-auto max-w-7xl">
@@ -166,7 +169,10 @@ const UserReportPage = () => {
 					{!loading && !error && report && (
 						<button 
 							type="button" 
-							onClick={() => exportReportToExcel(report, user)}
+							onClick={() => exportReportToExcel(selectedReportData, user, {
+								dailyPredictions,
+								source: reportSource
+							})}
 							className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg"
 						>
 							Download Report
@@ -181,46 +187,73 @@ const UserReportPage = () => {
 					<div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
 						<UserProfileCard user={user} />
 						<div className="space-y-4">
-							{/* Tabs to switch between PVGIS and PVWATTS results saved in DB */}
-							<div className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-100/60 p-1 backdrop-blur-sm">
-								<button
-									className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ease-out ${
-										reportSource === "pvgis"
-											? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-200 scale-105"
-											: "text-slate-600 hover:text-slate-900 hover:bg-white/40"
-									}`}
-									onClick={() => setReportSource("pvgis")}
-								>
-									PVGIS
-								</button>
-								<button
-									className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ease-out ${
-										reportSource === "pvwatts"
-											? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200 scale-105"
-											: "text-slate-600 hover:text-slate-900 hover:bg-white/40"
-									}`}
-									onClick={() => setReportSource("pvwatts")}
-								>
-									PVWATTS
-								</button>
+							<div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/70 p-2 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+								<div className="inline-flex w-full items-center gap-1 rounded-xl bg-slate-100 p-1 sm:w-auto">
+									<button
+										type="button"
+										className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+											activeReportTab === "monthly"
+												? "bg-slate-900 text-white shadow"
+												: "text-slate-600 hover:bg-white hover:text-slate-900"
+										}`}
+										onClick={() => setActiveReportTab("monthly")}
+									>
+										Monthly Report
+									</button>
+									<button
+										type="button"
+										className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+											activeReportTab === "daily"
+												? "bg-slate-900 text-white shadow"
+												: "text-slate-600 hover:bg-white hover:text-slate-900"
+										}`}
+										onClick={() => setActiveReportTab("daily")}
+									>
+										Daily Predictions
+									</button>
+								</div>
+
+								{activeReportTab === "monthly" && (
+									<div className="inline-flex w-full items-center gap-1 rounded-xl border border-slate-200 bg-slate-100/60 p-1 sm:w-auto">
+										<button
+											type="button"
+											className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+												reportSource === "pvgis"
+													? "bg-emerald-600 text-white shadow"
+													: "text-slate-600 hover:bg-white hover:text-slate-900"
+											}`}
+											onClick={() => setReportSource("pvgis")}
+										>
+											PVGIS
+										</button>
+										<button
+											type="button"
+											className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+												reportSource === "pvwatts"
+													? "bg-blue-600 text-white shadow"
+													: "text-slate-600 hover:bg-white hover:text-slate-900"
+											}`}
+											onClick={() => setReportSource("pvwatts")}
+										>
+											PVWATTS
+										</button>
+									</div>
+								)}
 							</div>
 
-							{/* Choose data from report.pvgis or report.pvwatts; fall back to top-level report */}
-							{(() => {
-								const sourceData = report?.[reportSource] ?? report ?? null;
-								return (
-									<>
-										<StatsStrip report={sourceData} source={reportSource} />
-										<MonthlyLineChartWithTable monthlyData={sourceData?.monthly_energy_kwh} />
-										<DailyPredictionTable
-											predictions={dailyPredictions}
-											error={dailyPredictionError}
-											fetching={fetchingDailyPrediction}
-											onFetchNow={handleFetchDailyPredictionNow}
-										/>
-									</>
-								);
-							})()}
+							{activeReportTab === "monthly" ? (
+								<>
+									<StatsStrip report={selectedReportData} source={reportSource} />
+									<MonthlyLineChartWithTable monthlyData={selectedReportData?.monthly_energy_kwh} />
+								</>
+							) : (
+								<DailyPredictionTable
+									predictions={dailyPredictions}
+									error={dailyPredictionError}
+									fetching={fetchingDailyPrediction}
+									onFetchNow={handleFetchDailyPredictionNow}
+								/>
+							)}
 						</div>
 					</div>
 				)}
