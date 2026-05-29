@@ -13,16 +13,8 @@ if (count >= 45) return "medium";
 return "low";
 };
 
-const getSeasonAdjustmentMultiplier = (date = new Date()) => {
-const month = date.getUTCMonth() + 1;
-if ([12, 1, 2].includes(month)) return 0.95;
-if ([3, 4, 5].includes(month)) return 1.03;
-if ([6, 7, 8, 9].includes(month)) return 0.92;
-return 1;
-};
-
 async function initializeOrUpdateBaseline(userId) {
-const history = await SiteDailyPerformance.find({ user_id: userId }).sort({ date: -1 }).limit(120).lean();
+const history = await SiteDailyPerformance.find({ user_id: userId }).sort({ date: -1 }).limit(30).lean();
 const ratios = history.map((item) => item.performance_ratio).filter(Number.isFinite);
 const dataPoints = ratios.length;
 const baselineRatio = average(ratios) || 1;
@@ -33,21 +25,21 @@ quarterLater.setDate(quarterLater.getDate() + 90);
 const profile = await SiteBaselineProfile.findOne({ user_id: userId });
 const adjustedRatio = profile?.manual_override
 ? profile.baseline_performance_ratio
-: Number((baselineRatio * getSeasonAdjustmentMultiplier(now)).toFixed(4));
+: Number(baselineRatio.toFixed(4));
 
 return SiteBaselineProfile.findOneAndUpdate(
 { user_id: userId },
 {
 user_id: userId,
 baseline_performance_ratio: adjustedRatio,
-baseline_status: dataPoints >= 30 ? "active" : "pending",
+baseline_status: dataPoints >= 7 ? "active" : "pending",
 warning_threshold: Number((adjustedRatio * 0.92).toFixed(4)),
 critical_threshold: Number((adjustedRatio * 0.85).toFixed(4)),
 data_points_used: dataPoints,
 confidence_level: getConfidence(dataPoints),
 seasonal_profiles: { winter: -5, summer: 3, monsoon: -8 },
-initialized_at: profile?.initialized_at || (dataPoints >= 30 ? now : null),
-confirmed_at: dataPoints >= 30 ? now : profile?.confirmed_at,
+initialized_at: profile?.initialized_at || (dataPoints >= 7 ? now : null),
+confirmed_at: dataPoints >= 7 ? now : profile?.confirmed_at,
 last_quarterly_review: now,
 next_quarterly_review: quarterLater
 },

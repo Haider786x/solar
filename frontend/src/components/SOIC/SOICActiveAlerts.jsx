@@ -95,6 +95,11 @@ const SOICActiveAlerts = ({ alerts = [], fullPage = false }) => {
 									<td className="border-b border-slate-100 px-5 py-4">
 										<p className="font-semibold text-slate-800">{alert.short_message || alert.title || "Alert requires review"}</p>
 										{fullPage && alert.description && <p className="mt-1 max-w-xl text-xs text-slate-500">{alert.description}</p>}
+										{fullPage && Array.isArray(alert.maintenance_recommendations) && alert.maintenance_recommendations.length > 0 && (
+											<p className="mt-1 max-w-xl text-xs font-semibold text-emerald-700">
+												{alert.maintenance_recommendations[0]}
+											</p>
+										)}
 									</td>
 									<td className="border-b border-slate-100 px-5 py-4">
 										<span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">

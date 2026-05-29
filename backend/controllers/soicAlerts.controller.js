@@ -4,6 +4,35 @@ const SiteHealthScore = require("../models/SiteHealthScore");
 const FleetPerformanceMetrics = require("../models/FleetPerformanceMetrics");
 const SiteDailyPerformance = require("../models/SiteDailyPerformance");
 const SiteTrendAnalysis = require("../models/SiteTrendAnalysis");
+const { runSoicPipeline } = require("../services/soicScheduler");
+
+let hydrationPromise = null;
+let lastHydratedAt = 0;
+const HYDRATION_TTL_MS = 5 * 60 * 1000;
+
+const hydrateSoicAnalytics = async ({ force = false } = {}) => {
+const now = Date.now();
+if (!force && now - lastHydratedAt < HYDRATION_TTL_MS) return null;
+if (!force) {
+const latestMetrics = await FleetPerformanceMetrics.findOne().sort({ snapshot_date: -1 }).select("calculated_at").lean();
+const latestCalculatedAt = latestMetrics?.calculated_at ? new Date(latestMetrics.calculated_at).getTime() : 0;
+if (latestCalculatedAt && now - latestCalculatedAt < HYDRATION_TTL_MS) {
+lastHydratedAt = now;
+return null;
+}
+}
+if (!hydrationPromise) {
+hydrationPromise = runSoicPipeline()
+.then((result) => {
+lastHydratedAt = Date.now();
+return result;
+})
+.finally(() => {
+hydrationPromise = null;
+});
+}
+return hydrationPromise;
+};
 
 const respondError = (res, message, error, status = 500) => res.status(status).json({
 success: false,
@@ -13,6 +42,7 @@ error: error?.message || String(error || "Unknown error")
 
 const getAlerts = async (req, res) => {
 try {
+await hydrateSoicAnalytics();
 const alerts = await Alert.find().sort({ created_at: -1 }).lean();
 return res.status(200).json({ success: true, data: alerts });
 } catch (error) {
@@ -35,8 +65,9 @@ return respondError(res, "Failed to fetch user alerts", error);
 
 const getActiveAlerts = async (req, res) => {
 try {
+await hydrateSoicAnalytics();
 const alerts = await Alert.find({ status: { $in: ["CREATED", "ACTIVE", "ESCALATED"] } })
-.sort({ priority: -1, created_at: -1 })
+.sort({ priority: -1, triggered_at: -1, created_at: -1 })
 .lean();
 return res.status(200).json({ success: true, data: alerts });
 } catch (error) {
@@ -56,6 +87,7 @@ return respondError(res, "Failed to fetch alerts by priority", error);
 
 const getHealthScores = async (req, res) => {
 try {
+await hydrateSoicAnalytics();
 const scores = await SiteHealthScore.find().sort({ health_score: -1 }).lean();
 return res.status(200).json({ success: true, data: scores });
 } catch (error) {
@@ -78,6 +110,7 @@ return respondError(res, "Failed to fetch user health score", error);
 
 const getFleetMetrics = async (req, res) => {
 try {
+await hydrateSoicAnalytics();
 const metrics = await FleetPerformanceMetrics.findOne().sort({ snapshot_date: -1 }).lean();
 return res.status(200).json({ success: true, data: metrics });
 } catch (error) {
@@ -113,15 +146,66 @@ return respondError(res, "Failed to fetch trend analysis", error);
 
 const getWatchlist = async (req, res) => {
 try {
-const watchlist = await SiteDailyPerformance.find({
-performance_ratio: { $gte: 0.88, $lt: 0.95 }
+await hydrateSoicAnalytics();
+const rows = await SiteDailyPerformance.find().sort({ user_id: 1, date: -1 }).lean();
+const latestByUser = new Map();
+for (const row of rows) {
+const key = String(row.user_id);
+if (!latestByUser.has(key)) latestByUser.set(key, row);
+}
+const watchlist = Array.from(latestByUser.values())
+.filter((row) => {
+const baseline = Number(row.site_baseline_ratio || 0);
+if (!baseline) return row.performance_ratio >= 0.88 && row.performance_ratio < 0.95;
+return row.performance_ratio < baseline * 0.98 && row.performance_ratio >= baseline * 0.85;
 })
-.sort({ performance_ratio: 1, date: -1 })
-.limit(50)
-.lean();
+.sort((left, right) => left.performance_ratio - right.performance_ratio)
+.slice(0, 50);
 return res.status(200).json({ success: true, data: watchlist });
 } catch (error) {
 return respondError(res, "Failed to fetch watchlist", error);
+}
+};
+
+const getDashboard = async (req, res) => {
+try {
+await hydrateSoicAnalytics({ force: req.query.refresh === "true" });
+const [metrics, activeAlerts, alerts, healthScores] = await Promise.all([
+FleetPerformanceMetrics.findOne().sort({ snapshot_date: -1 }).lean(),
+Alert.find({ status: { $in: ["CREATED", "ACTIVE", "ESCALATED"] } })
+.sort({ priority: -1, triggered_at: -1, created_at: -1 })
+.lean(),
+Alert.find().sort({ triggered_at: -1, created_at: -1 }).lean(),
+SiteHealthScore.find().sort({ health_score: -1 }).lean()
+]);
+
+const rows = await SiteDailyPerformance.find().sort({ user_id: 1, date: -1 }).lean();
+const latestByUser = new Map();
+for (const row of rows) {
+const key = String(row.user_id);
+if (!latestByUser.has(key)) latestByUser.set(key, row);
+}
+const watchlist = Array.from(latestByUser.values())
+.filter((row) => {
+const baseline = Number(row.site_baseline_ratio || 0);
+if (!baseline) return row.performance_ratio >= 0.88 && row.performance_ratio < 0.95;
+return row.performance_ratio < baseline * 0.98 && row.performance_ratio >= baseline * 0.85;
+})
+.sort((left, right) => left.performance_ratio - right.performance_ratio)
+.slice(0, 50);
+
+return res.status(200).json({
+success: true,
+data: {
+metrics,
+activeAlerts,
+alerts,
+healthScores,
+watchlist
+}
+});
+} catch (error) {
+return respondError(res, "Failed to fetch SOIC dashboard", error);
 }
 };
 
@@ -177,6 +261,7 @@ getFleetMetrics,
 getSitePerformance,
 getSiteTrends,
 getWatchlist,
+getDashboard,
 acknowledgeAlert,
 resolveAlert
 };

@@ -8,11 +8,7 @@ import SOICBestPerformers from "../components/SOIC/SOICBestPerformers";
 import SOICDegradedSites from "../components/SOIC/SOICDegradedSites";
 import SOICRecoveredSites from "../components/SOIC/SOICRecoveredSites";
 import {
-	fetchSOICActiveAlerts,
-	fetchSOICAlerts,
-	fetchSOICFleetMetrics,
-	fetchSOICHealthScores,
-	fetchSOICWatchlist
+	fetchSOICDashboard
 } from "../services/soicApi";
 
 const EMPTY_METRICS = {
@@ -64,54 +60,28 @@ const SOICDashboard = () => {
 	const [activeTab, setActiveTab] = useState("overview");
 	const [lastUpdated, setLastUpdated] = useState(null);
 
-	const fetchOperationsData = useCallback(async () => {
+	const fetchOperationsData = useCallback(async ({ forceRefresh = false } = {}) => {
 		setLoading(true);
 		setError("");
 
-		const results = await Promise.allSettled([
-			fetchSOICFleetMetrics(),
-			fetchSOICActiveAlerts(),
-			fetchSOICAlerts(),
-			fetchSOICHealthScores(),
-			fetchSOICWatchlist()
-		]);
-
-		const [metricsResult, activeAlertsResult, allAlertsResult, healthScoresResult, watchlistResult] = results;
-		const failedRequests = results.filter((result) => result.status === "rejected");
-
-		if (metricsResult.status === "fulfilled") {
-			setFleetMetrics(metricsResult.value || EMPTY_METRICS);
-		} else {
+		try {
+			const dashboard = await fetchSOICDashboard(forceRefresh);
+			setFleetMetrics(dashboard?.metrics || EMPTY_METRICS);
+			setActiveAlerts(sortAlertsByUrgency(Array.isArray(dashboard?.activeAlerts) ? dashboard.activeAlerts : []));
+			setAllAlerts(sortAlertsByUrgency(Array.isArray(dashboard?.alerts) ? dashboard.alerts : []));
+			setHealthScores(Array.isArray(dashboard?.healthScores) ? dashboard.healthScores : []);
+			setWatchlist(Array.isArray(dashboard?.watchlist) ? dashboard.watchlist : []);
+			setLastUpdated(new Date());
+		} catch (err) {
+			setError(err.message || "SOIC data could not be loaded.");
 			setFleetMetrics(EMPTY_METRICS);
+			setActiveAlerts([]);
+			setAllAlerts([]);
+			setHealthScores([]);
+			setWatchlist([]);
+		} finally {
+			setLoading(false);
 		}
-
-		setActiveAlerts(
-			activeAlertsResult.status === "fulfilled" && Array.isArray(activeAlertsResult.value)
-				? sortAlertsByUrgency(activeAlertsResult.value)
-				: []
-		);
-		setAllAlerts(
-			allAlertsResult.status === "fulfilled" && Array.isArray(allAlertsResult.value)
-				? sortAlertsByUrgency(allAlertsResult.value)
-				: []
-		);
-		setHealthScores(
-			healthScoresResult.status === "fulfilled" && Array.isArray(healthScoresResult.value)
-				? healthScoresResult.value
-				: []
-		);
-		setWatchlist(
-			watchlistResult.status === "fulfilled" && Array.isArray(watchlistResult.value)
-				? watchlistResult.value
-				: []
-		);
-
-		if (failedRequests.length) {
-			setError("Some SOIC data could not be loaded. Showing the latest available dashboard shell.");
-		}
-
-		setLastUpdated(new Date());
-		setLoading(false);
 	}, []);
 
 	useEffect(() => {
@@ -199,7 +169,7 @@ const SOICDashboard = () => {
 						)}
 						<button
 							type="button"
-							onClick={fetchOperationsData}
+							onClick={() => fetchOperationsData({ forceRefresh: true })}
 							className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-70"
 							disabled={loading}
 						>

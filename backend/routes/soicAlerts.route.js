@@ -10,6 +10,7 @@ getFleetMetrics,
 getSitePerformance,
 getSiteTrends,
 getWatchlist,
+getDashboard,
 acknowledgeAlert,
 resolveAlert
 } = require("../controllers/soicAlerts.controller");
@@ -29,6 +30,7 @@ router.get("/fleet-metrics", getFleetMetrics);
 router.get("/performance/:userId", getSitePerformance);
 router.get("/trends/:userId", getSiteTrends);
 router.get("/watchlist", getWatchlist);
+router.get("/dashboard", getDashboard);
 router.patch("/alerts/:alertId/acknowledge", acknowledgeAlert);
 router.patch("/alerts/:alertId/resolve", resolveAlert);
 
