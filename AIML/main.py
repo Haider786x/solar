@@ -10,6 +10,10 @@ import requests
 from dotenv import load_dotenv
 import os
 from solar_prediction import predict_daily_generation
+from foxes_service import (
+    get_generation_data
+)
+from solaredge_daily import get_today_energy
 
 load_dotenv()
 
@@ -152,7 +156,7 @@ def call_pvgis(data: SolarInput):
 
 
 def call_pvwatts(data: SolarInput):
-    url = "https://developer.nrel.gov/api/pvwatts/v8.json"
+    url = "https://developer.nlr.gov/api/pvwatts/v8.json"
 
     # realistic losses
     total_losses = max(sum(data.losses), 15)
@@ -288,6 +292,46 @@ def predict_today(
     )
 
     return result
+
+@app.get(
+    "/gen/{serial_no}"
+)
+def get_generation(
+    serial_no: str
+):
+
+    try:
+
+        return get_generation_data(
+            serial_no
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+
+@app.get("/solaredge/{site_id}")
+def get_site_energy(site_id: str):
+
+    try:
+
+        energy = get_today_energy(site_id)
+
+        return {
+            "site_id": site_id,
+            "today_energy_kwh": energy,
+            "unit": "kWh"
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
 
 
 @app.post("/savings")
