@@ -1,3 +1,5 @@
+import { getSimpleAlertText, getSimpleAlertType } from "./alertCopy";
+
 const colorByPriority = {
 	P0: "border-blue-200 bg-blue-50 text-blue-700",
 	P1: "border-lime-200 bg-lime-50 text-lime-700",
@@ -92,12 +94,12 @@ const SOICActiveAlerts = ({ alerts = [], fullPage = false }) => {
 									<td className="border-b border-slate-100 px-5 py-4 font-semibold text-slate-800">{siteLabel(alert.user_name || alert.site_name, alert.user_id)}</td>
 									<td className="border-b border-slate-100 px-5 py-4">
 										<span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-600">
-											{String(alert.alert_type || "general").replaceAll("_", " ")}
+											{getSimpleAlertType(String(alert.alert_type || "general").replaceAll("_", " "))}
 										</span>
 									</td>
 									<td className="border-b border-slate-100 px-5 py-4">
-										<p className="font-semibold text-slate-800">{alert.short_message || alert.title || "Alert requires review"}</p>
-										{fullPage && alert.description && <p className="mt-1 max-w-xl text-xs text-slate-500">{alert.description}</p>}
+										<p className="font-semibold text-slate-800">{getSimpleAlertText(alert.short_message || alert.title || "Alert requires review")}</p>
+										{fullPage && alert.description && <p className="mt-1 max-w-xl text-xs text-slate-500">{getSimpleAlertText(alert.description)}</p>}
 										{fullPage && Array.isArray(alert.maintenance_recommendations) && alert.maintenance_recommendations.length > 0 && (
 											<p className="mt-1 max-w-xl text-xs font-semibold text-emerald-700">
 												{alert.maintenance_recommendations[0]}
