@@ -1,4 +1,7 @@
-const siteLabel = (value) => {
+const siteLabel = (name, value) => {
+	const label = String(name || "").trim();
+	if (label) return label;
+
 	const id = String(value || "unassigned");
 	if (id === "unassigned") return "Unassigned";
 	return `Site ${id.slice(-6).toUpperCase()}`;
@@ -45,7 +48,7 @@ const SOICCriticalSites = ({ alerts = [], healthScores = [], fullPage = false })
 							<div key={alert._id || `${alert.user_id}-${alert.title}`} className="rounded-xl border border-rose-100 bg-rose-50/70 p-3">
 								<div className="flex items-start justify-between gap-3">
 									<div>
-										<p className="text-sm font-bold text-slate-900">{siteLabel(alert.user_id)}</p>
+										<p className="text-sm font-bold text-slate-900">{siteLabel(alert.user_name || alert.site_name, alert.user_id)}</p>
 										<p className="mt-1 text-xs font-semibold text-slate-600">{alert.short_message || alert.title || "Critical alert"}</p>
 									</div>
 									<span className={`rounded-full border px-2.5 py-1 text-xs font-black ${priorityClass[alert.priority] || "border-rose-200 bg-rose-50 text-rose-800"}`}>
@@ -71,7 +74,7 @@ const SOICCriticalSites = ({ alerts = [], healthScores = [], fullPage = false })
 							<div key={score._id || String(score.user_id)} className="rounded-xl border border-amber-100 bg-amber-50/70 p-3">
 								<div className="flex items-center justify-between gap-3">
 									<div>
-										<p className="text-sm font-bold text-slate-900">{siteLabel(score.user_id)}</p>
+										<p className="text-sm font-bold text-slate-900">{siteLabel(score.user_name || score.site_name, score.user_id)}</p>
 										<p className="mt-1 text-xs font-semibold text-slate-600">{score.health_category || "CRITICAL"}</p>
 									</div>
 									<span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-amber-700 shadow-sm">
