@@ -57,6 +57,20 @@ user_name: namesById.get(String(record.user_id)) || record.user_name || ""
 }));
 };
 
+const enrichMetricsWithUserNames = async (metrics) => {
+if (!metrics) return metrics;
+const [bestWithNames, worstWithNames] = await Promise.all([
+enrichWithUserName(metrics.top_5_best_performers || []),
+enrichWithUserName(metrics.top_5_worst_performers || [])
+]);
+
+return {
+...metrics,
+top_5_best_performers: bestWithNames,
+top_5_worst_performers: worstWithNames
+};
+};
+
 const getAlerts = async (req, res) => {
 try {
 await hydrateSoicAnalytics();
@@ -133,11 +147,8 @@ const getFleetMetrics = async (req, res) => {
 try {
 await hydrateSoicAnalytics();
 const metrics = await FleetPerformanceMetrics.findOne().sort({ snapshot_date: -1 }).lean();
-if (metrics) {
-metrics.top_5_best_performers = await enrichWithUserName(metrics.top_5_best_performers || []);
-metrics.top_5_worst_performers = await enrichWithUserName(metrics.top_5_worst_performers || []);
-}
-return res.status(200).json({ success: true, data: metrics });
+const enrichedMetrics = await enrichMetricsWithUserNames(metrics);
+return res.status(200).json({ success: true, data: enrichedMetrics });
 } catch (error) {
 return respondError(res, "Failed to fetch fleet metrics", error);
 }
@@ -204,18 +215,11 @@ Alert.find().sort({ triggered_at: -1, created_at: -1 }).lean(),
 SiteHealthScore.find().sort({ health_score: -1 }).lean()
 ]);
 
-const [activeAlertsWithNames, alertsWithNames] = await Promise.all([
+const [enrichedMetrics, activeAlertsWithNames, alertsWithNames] = await Promise.all([
+enrichMetricsWithUserNames(metrics),
 enrichWithUserName(activeAlerts),
 enrichWithUserName(alerts)
 ]);
-if (metrics) {
-const [bestWithNames, worstWithNames] = await Promise.all([
-enrichWithUserName(metrics.top_5_best_performers || []),
-enrichWithUserName(metrics.top_5_worst_performers || [])
-]);
-metrics.top_5_best_performers = bestWithNames;
-metrics.top_5_worst_performers = worstWithNames;
-}
 
 const rows = await SiteDailyPerformance.find().sort({ user_id: 1, date: -1 }).lean();
 const latestByUser = new Map();
@@ -235,7 +239,7 @@ return row.performance_ratio < baseline * 0.98 && row.performance_ratio >= basel
 return res.status(200).json({
 success: true,
 data: {
-metrics,
+metrics: enrichedMetrics,
 activeAlerts: activeAlertsWithNames,
 alerts: alertsWithNames,
 healthScores,
