@@ -74,10 +74,15 @@ async function calculateFleetMetrics() {
 		acc[band] = (acc[band] || 0) + 1;
 		return acc;
 	}, {});
+	const userNamesById = users.reduce((acc, user) => {
+		acc[String(user._id)] = user.name;
+		return acc;
+	}, {});
 
 	const ranked = performances
 		.map((item) => ({
 			user_id: item.user_id,
+			user_name: userNamesById[String(item.user_id)] || "",
 			performance_ratio: item.performance_ratio,
 			baseline_drift_percent: item.baseline_drift_percent,
 			data_source: item.data_source,
