@@ -74,10 +74,12 @@ async function calculateFleetMetrics() {
 		acc[band] = (acc[band] || 0) + 1;
 		return acc;
 	}, {});
+	const userNameById = new Map(users.map((user) => [String(user._id), user.name || ""]));
 
 	const ranked = performances
 		.map((item) => ({
 			user_id: item.user_id,
+			user_name: userNameById.get(String(item.user_id)) || "",
 			performance_ratio: item.performance_ratio,
 			baseline_drift_percent: item.baseline_drift_percent,
 			data_source: item.data_source,

@@ -133,6 +133,10 @@ const getFleetMetrics = async (req, res) => {
 try {
 await hydrateSoicAnalytics();
 const metrics = await FleetPerformanceMetrics.findOne().sort({ snapshot_date: -1 }).lean();
+if (metrics) {
+metrics.top_5_best_performers = await enrichWithUserName(metrics.top_5_best_performers || []);
+metrics.top_5_worst_performers = await enrichWithUserName(metrics.top_5_worst_performers || []);
+}
 return res.status(200).json({ success: true, data: metrics });
 } catch (error) {
 return respondError(res, "Failed to fetch fleet metrics", error);
@@ -204,6 +208,14 @@ const [activeAlertsWithNames, alertsWithNames] = await Promise.all([
 enrichWithUserName(activeAlerts),
 enrichWithUserName(alerts)
 ]);
+if (metrics) {
+const [bestWithNames, worstWithNames] = await Promise.all([
+enrichWithUserName(metrics.top_5_best_performers || []),
+enrichWithUserName(metrics.top_5_worst_performers || [])
+]);
+metrics.top_5_best_performers = bestWithNames;
+metrics.top_5_worst_performers = worstWithNames;
+}
 
 const rows = await SiteDailyPerformance.find().sort({ user_id: 1, date: -1 }).lean();
 const latestByUser = new Map();
