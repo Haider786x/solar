@@ -31,7 +31,10 @@ const formatPercent = (value) => {
 	return `${Math.round(parsed * 100)}%`;
 };
 
-const siteLabel = (value) => {
+const siteLabel = (name, value) => {
+	const label = String(name || "").trim();
+	if (label) return label;
+
 	const id = String(value || "unassigned");
 	if (id === "unassigned") return "Unassigned";
 	return `Site ${id.slice(-6).toUpperCase()}`;
@@ -86,7 +89,7 @@ const SOICActiveAlerts = ({ alerts = [], fullPage = false }) => {
 											{alert.priority || "P0"}
 										</span>
 									</td>
-									<td className="border-b border-slate-100 px-5 py-4 font-semibold text-slate-800">{siteLabel(alert.user_id)}</td>
+									<td className="border-b border-slate-100 px-5 py-4 font-semibold text-slate-800">{siteLabel(alert.user_name || alert.site_name, alert.user_id)}</td>
 									<td className="border-b border-slate-100 px-5 py-4">
 										<span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-600">
 											{String(alert.alert_type || "general").replaceAll("_", " ")}

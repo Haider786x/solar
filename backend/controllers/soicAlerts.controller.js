@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Alert = require("../models/Alert");
+const UserData = require("../models/data");
 const SiteHealthScore = require("../models/SiteHealthScore");
 const FleetPerformanceMetrics = require("../models/FleetPerformanceMetrics");
 const SiteDailyPerformance = require("../models/SiteDailyPerformance");
@@ -40,11 +41,28 @@ message,
 error: error?.message || String(error || "Unknown error")
 });
 
+const enrichWithUserName = async (records = []) => {
+const userIds = [...new Set(records
+.map((record) => String(record?.user_id || ""))
+.filter((id) => mongoose.Types.ObjectId.isValid(id)))];
+
+if (!userIds.length) return records;
+
+const users = await UserData.find({ _id: { $in: userIds } }).select("_id name").lean();
+const namesById = new Map(users.map((user) => [String(user._id), user.name]));
+
+return records.map((record) => ({
+...record,
+user_name: namesById.get(String(record.user_id)) || record.user_name || ""
+}));
+};
+
 const getAlerts = async (req, res) => {
 try {
 await hydrateSoicAnalytics();
 const alerts = await Alert.find().sort({ created_at: -1 }).lean();
-return res.status(200).json({ success: true, data: alerts });
+const alertsWithNames = await enrichWithUserName(alerts);
+return res.status(200).json({ success: true, data: alertsWithNames });
 } catch (error) {
 return respondError(res, "Failed to fetch alerts", error);
 }
@@ -57,7 +75,8 @@ if (!mongoose.Types.ObjectId.isValid(userId)) {
 return res.status(400).json({ success: false, message: "Invalid user id" });
 }
 const alerts = await Alert.find({ user_id: userId }).sort({ created_at: -1 }).lean();
-return res.status(200).json({ success: true, data: alerts });
+const alertsWithNames = await enrichWithUserName(alerts);
+return res.status(200).json({ success: true, data: alertsWithNames });
 } catch (error) {
 return respondError(res, "Failed to fetch user alerts", error);
 }
@@ -69,7 +88,8 @@ await hydrateSoicAnalytics();
 const alerts = await Alert.find({ status: { $in: ["CREATED", "ACTIVE", "ESCALATED"] } })
 .sort({ priority: -1, triggered_at: -1, created_at: -1 })
 .lean();
-return res.status(200).json({ success: true, data: alerts });
+const alertsWithNames = await enrichWithUserName(alerts);
+return res.status(200).json({ success: true, data: alertsWithNames });
 } catch (error) {
 return respondError(res, "Failed to fetch active alerts", error);
 }
@@ -79,7 +99,8 @@ const getAlertsByPriority = async (req, res) => {
 try {
 const { priority } = req.params;
 const alerts = await Alert.find({ priority }).sort({ created_at: -1 }).lean();
-return res.status(200).json({ success: true, data: alerts });
+const alertsWithNames = await enrichWithUserName(alerts);
+return res.status(200).json({ success: true, data: alertsWithNames });
 } catch (error) {
 return respondError(res, "Failed to fetch alerts by priority", error);
 }
@@ -179,6 +200,11 @@ Alert.find().sort({ triggered_at: -1, created_at: -1 }).lean(),
 SiteHealthScore.find().sort({ health_score: -1 }).lean()
 ]);
 
+const [activeAlertsWithNames, alertsWithNames] = await Promise.all([
+enrichWithUserName(activeAlerts),
+enrichWithUserName(alerts)
+]);
+
 const rows = await SiteDailyPerformance.find().sort({ user_id: 1, date: -1 }).lean();
 const latestByUser = new Map();
 for (const row of rows) {
@@ -198,8 +224,8 @@ return res.status(200).json({
 success: true,
 data: {
 metrics,
-activeAlerts,
-alerts,
+activeAlerts: activeAlertsWithNames,
+alerts: alertsWithNames,
 healthScores,
 watchlist
 }
