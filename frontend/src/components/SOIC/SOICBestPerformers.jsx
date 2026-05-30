@@ -39,7 +39,7 @@ const SOICBestPerformers = ({ metrics = {} }) => {
 												{index + 1}
 											</span>
 											<div className="min-w-0">
-												<p className="truncate text-sm font-bold text-slate-900">{siteLabel(site.user_id)}</p>
+												<p className="truncate text-sm font-bold text-slate-900">{site.user_name || siteLabel(site.user_id)}</p>
 												<p className="text-xs font-semibold text-emerald-700">Performance ratio</p>
 											</div>
 										</div>
