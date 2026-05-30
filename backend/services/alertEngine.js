@@ -65,6 +65,29 @@ const createOrUpdateAlert = async (payload) => {
 	);
 };
 
+const upsertNoRealTimeDataAlert = async (payload) => {
+	const existing = await Alert.findOne({
+		user_id: payload.user_id,
+		alert_type: payload.alert_type,
+		status: { $in: ["CREATED", "ACTIVE", "ESCALATED"] }
+	}).sort({ triggered_at: -1, created_at: -1 });
+
+	if (existing) {
+		return Alert.findByIdAndUpdate(
+			existing._id,
+			{
+				...payload,
+				status: getActiveStatus(existing),
+				escalation_history: existing.escalation_history || [],
+				escalation_count: existing.escalation_count || 0
+			},
+			{ returnDocument: "after" }
+		);
+	}
+
+	return Alert.create(payload);
+};
+
 async function autoResolveClearedAlerts(userId, baseline) {
 	const activeAlerts = await Alert.find({
 		user_id: userId,
@@ -155,13 +178,55 @@ async function evaluateAlertsForUser(userId) {
 
 	const alertsToUpsert = [];
 
+	if (!hasActualTelemetry) {
+		const noRealTimeAlert = makePayload({
+			alertType: "No Real-Time Data",
+			priority: "P1",
+			title: "No real-time data available",
+			description: "Real-time inverter data not available - This site needs to be configured first.",
+			shortMessage: "Real-time inverter data not available"
+		});
+
+		const primaryAlert = await upsertNoRealTimeDataAlert(noRealTimeAlert);
+		let autoResolved = 0;
+
+		const resolvedResult = await Alert.updateMany(
+			{
+				user_id: userId,
+				status: { $in: ["CREATED", "ACTIVE", "ESCALATED"] },
+				_id: { $ne: primaryAlert._id }
+			},
+			{
+				$set: {
+					status: "AUTO_RESOLVED",
+					auto_resolved_at: new Date(),
+					resolved_at: new Date(),
+					resolution_reason: "Waiting for real-time inverter setup"
+				}
+			}
+		);
+		autoResolved += resolvedResult?.modifiedCount || 0;
+
+		await SiteDailyPerformance.findByIdAndUpdate(latest._id, {
+			alert_triggered: true,
+			alert_types_triggered: [noRealTimeAlert.alert_type],
+			probable_causes: reasoning.possible_causes,
+			maintenance_recommendations: reasoning.maintenance_recommendations,
+			projected_risk_timeline_days: reasoning.projected_risk_timeline_days,
+			reasoning_summary: reasoning.reasoning_summary,
+			analytics_confidence: reasoning.confidence_score
+		});
+
+		return { createdOrUpdated: 1, autoResolved };
+	}
+
 	if (consecutiveUnder >= 3 && normalizeRatio(latest.performance_ratio) < warningThreshold) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Persistent Underperformance",
 			priority: getPriorityForLoss(lossPercent, consecutiveUnder),
-			title: "Persistent underperformance detected",
-			description: `${consecutiveUnder} consecutive SOIC snapshots are below the site warning baseline by ${lossPercent.toFixed(2)}%.`,
-			shortMessage: "Site performance is below its historical baseline"
+			title: "Output has stayed low for several days",
+			description: `Production has stayed below normal for ${consecutiveUnder} days.`,
+			shortMessage: "Production has been low for multiple days"
 		}));
 	}
 
@@ -169,9 +234,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Performance Drift",
 			priority: trend30.trend_severity === "high" ? "P3" : "P2",
-			title: "Gradual performance drift detected",
-			description: `30-day trend is declining with slope ${safeNumber(trend30.slope).toFixed(4)} and ${trend30.data_points} data points.`,
-			shortMessage: "Gradual decline trend detected"
+			title: "Output is gradually declining",
+			description: "Recent production trend shows a steady drop.",
+			shortMessage: "Production trend is going down"
 		}));
 	}
 
@@ -179,9 +244,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Sudden Production Drop",
 			priority: "P5",
-			title: "Sudden production drop",
-			description: `Inverter generation dropped ${lossPercent.toFixed(2)}% below the SOIC baseline.`,
-			shortMessage: "Emergency drop in production"
+			title: "Production dropped sharply",
+			description: "Production is significantly below expected.",
+			shortMessage: "Production is significantly below expected"
 		}));
 	}
 
@@ -189,9 +254,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Site Offline",
 			priority: "P5",
-			title: "Site appears offline",
-			description: "AIML predicted generation for the day, but inverter generation reported zero.",
-			shortMessage: "No generation recorded for site"
+			title: "No power output detected",
+			description: "The site is not showing any real-time production.",
+			shortMessage: "No power output detected"
 		}));
 	}
 
@@ -199,9 +264,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Data Quality Issue",
 			priority: "P1",
-			title: "Inverter telemetry missing",
-			description: "SOIC found forecast/report data, but inverter generation telemetry was unavailable for this snapshot.",
-			shortMessage: "Telemetry gap detected"
+			title: "No real-time data available",
+			description: "Real-time inverter data is missing for this site.",
+			shortMessage: "No real-time data available"
 		}));
 	}
 
@@ -209,9 +274,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Weather Mismatch",
 			priority: "P2",
-			title: "Weather mismatch detected",
-			description: "Low generation occurred under favorable cloud cover, suggesting site-side degradation instead of weather loss.",
-			shortMessage: "Low generation despite clear weather"
+			title: "Output is low even in good weather",
+			description: "Good weather but low output suggests the site needs attention.",
+			shortMessage: "Good weather but low output"
 		}));
 	}
 
@@ -219,9 +284,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Thermal Issue",
 			priority: "P2",
-			title: "Thermal-related production drop",
-			description: "High temperature coincided with below-baseline performance.",
-			shortMessage: "Thermal derating pattern observed"
+			title: "High temperature affecting output",
+			description: "Hot weather is reducing site production.",
+			shortMessage: "High temperature affecting output"
 		}));
 	}
 
@@ -229,9 +294,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Shading Detection",
 			priority: "P2",
-			title: "Potential new shading pattern",
-			description: "Unexplained low output under favorable weather suggests shading, soiling, or obstruction.",
-			shortMessage: "Potential shading impact detected"
+			title: "Panels may need cleaning or inspection",
+			description: "Low output may be caused by dirt, shade, or blockage.",
+			shortMessage: "Panels may need cleaning or inspection"
 		}));
 	}
 
@@ -239,9 +304,9 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Anomaly Detected",
 			priority: "P2",
-			title: "Statistical anomaly detected",
-			description: `SOIC anomaly score is ${safeNumber(latest.anomaly_score).toFixed(2)}.`,
-			shortMessage: "Performance outlier identified"
+			title: "Unexpected performance pattern detected",
+			description: "Site performance is behaving differently than usual.",
+			shortMessage: "Unexpected performance pattern detected"
 		}));
 	}
 
@@ -253,8 +318,8 @@ async function evaluateAlertsForUser(userId) {
 		alertsToUpsert.push(makePayload({
 			alertType: "Recovery Alert",
 			priority: "P0",
-			title: "Site recovered to normal operation",
-			description: "Previously degraded site returned to its SOIC baseline band.",
+			title: "Production is back to normal",
+			description: "The site has returned to expected output levels.",
 			shortMessage: "Performance has recovered",
 			status: "AUTO_RESOLVED",
 			extra: {
