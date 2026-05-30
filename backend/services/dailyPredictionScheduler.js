@@ -172,20 +172,6 @@ async function fetchAndStoreDailyPredictions(options = {}) {
 		result.errors.push({ message: err.message });
 	}
 
-	// Emit event for SOIC alert engine
-	if (result.stored > 0) {
-		try {
-			const { alertEventEmitter } = require("./soicScheduler");
-			alertEventEmitter.emit("daily:predictions:stored", {
-				totalUsers: result.totalUsers,
-				storedCount: result.stored,
-				timestamp: new Date()
-			});
-		} catch (err) {
-			console.error("[SOIC] Event emission error:", err.message);
-		}
-	}
-
 	return result;
 }
 
