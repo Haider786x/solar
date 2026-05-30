@@ -1,3 +1,5 @@
+import { getSimpleAlertText } from "./alertCopy";
+
 const siteLabel = (name, value) => {
 	const label = String(name || "").trim();
 	if (label) return label;
@@ -49,7 +51,7 @@ const SOICCriticalSites = ({ alerts = [], healthScores = [], fullPage = false })
 								<div className="flex items-start justify-between gap-3">
 									<div>
 										<p className="text-sm font-bold text-slate-900">{siteLabel(alert.user_name || alert.site_name, alert.user_id)}</p>
-										<p className="mt-1 text-xs font-semibold text-slate-600">{alert.short_message || alert.title || "Critical alert"}</p>
+										<p className="mt-1 text-xs font-semibold text-slate-600">{getSimpleAlertText(alert.short_message || alert.title || "Critical alert")}</p>
 									</div>
 									<span className={`rounded-full border px-2.5 py-1 text-xs font-black ${priorityClass[alert.priority] || "border-rose-200 bg-rose-50 text-rose-800"}`}>
 										{alert.priority}
